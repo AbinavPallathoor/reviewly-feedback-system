@@ -1,0 +1,13 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import empty %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Users</h1><p>{{ users|length }} accounts</p></div></div>
+{% if users %}
+<div class="tablewrap reveal"><table>
+<thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Company</th><th>Reviews</th><th>Orders</th><th>Joined</th></tr></thead>
+<tbody>{% for u in users %}<tr><td>{{ u.user_id }}</td><td><strong>{{ u.full_name }}</strong></td><td>{{ u.email }}</td>
+<td><span class="pill {{ 'inv' if u.role != 'Customer' }}">{{ u.role }}</span></td><td>{{ u.company_name or '—' }}</td><td>{{ u.reviews }}</td><td>{{ u.orders }}</td><td>{{ u.created_at[:10] }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}{{ empty('No users') }}{% endif %}
+{% endblock %}

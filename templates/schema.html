@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Schema{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Database schema</h1><p>Read-only DDL pulled live from <code>sqlite_master</code>. Business rules live in the triggers.</p></div>
+<div class="row">{% for t, items in grouped.items() %}<a class="pill" href="#{{ t }}s">{{ items|length }} {{ t }}s</a>{% endfor %}</div></div>
+{% for t, items in grouped.items() %}
+<h3 id="{{ t }}s" class="reveal" style="margin-top:1.5rem;text-transform:capitalize">{{ t }}s</h3>
+{% for o in items %}
+<details class="obj reveal" {{ 'open' if t != 'table' }}><summary>{{ o.name }} {% if t == 'trigger' %}<small class="muted">on {{ o.tbl_name }}</small>{% endif %}</summary><pre class="sql">{{ o.sql }}</pre></details>
+{% endfor %}
+{% endfor %}
+{% endblock %}

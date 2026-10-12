@@ -1,0 +1,5 @@
+.venv/
+__pycache__/
+*.pyc
+reviewly.db
+.DS_Store

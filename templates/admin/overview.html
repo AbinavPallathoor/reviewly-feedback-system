@@ -1,0 +1,38 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import stars, empty %}
+{% block title %}Overview{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Overview</h1><p>Platform health at a glance.</p></div></div>
+<div class="grid-stats">
+  {% for k, v in stats.items() %}
+  <div class="card stat reveal {{ 'inv' if k == 'Pending reports' and v }}"><div class="k">{{ k }}</div><div class="v" data-count="{{ v }}">{{ v }}</div></div>
+  {% endfor %}
+</div>
+<div class="split">
+  <section class="card reveal">
+    <div class="row between"><h4 style="margin:0">Reviews per day</h4><span class="muted" style="font-size:.8rem">last {{ series|length }} days · {{ series|sum }} total</span></div>
+    <svg class="spark" viewBox="0 0 {{ spark_w }} {{ spark_h }}" preserveAspectRatio="none" style="width:100%;height:140px;margin-top:1rem" role="img" aria-label="Reviews per day sparkline">
+      {% for y in [0.25, 0.5, 0.75] %}<line class="grid" x1="0" x2="{{ spark_w }}" y1="{{ spark_h * y }}" y2="{{ spark_h * y }}"/>{% endfor %}
+      <polygon class="area" points="0,{{ spark_h }} {{ points }} {{ spark_w }},{{ spark_h }}"/>
+      <polyline points="{{ points }}" vector-effect="non-scaling-stroke"/>
+    </svg>
+    <div class="row between muted" style="font-size:.75rem"><span>{{ start }}</span><span>peak {{ series|max }}/day</span><span>today</span></div>
+  </section>
+  <section class="card reveal">
+    <h4>Rating histogram <small class="muted">(approved)</small></h4>
+    {% set mx = (dist|map(attribute='count')|max) or 1 %}
+    <svg class="hist" viewBox="0 0 300 150" style="width:100%;height:160px" role="img" aria-label="Rating histogram">
+      {% for d in dist|reverse %}{% set h = 110 * d.count / mx %}{% set x = 15 + loop.index0 * 57 %}
+      <rect class="b" x="{{ x }}" y="{{ 125 - h }}" width="40" height="{{ h }}" rx="4" style="animation-delay: {{ loop.index0 * 70 }}ms"/>
+      <text class="v" x="{{ x + 20 }}" y="{{ 120 - h }}" text-anchor="middle">{{ d.count }}</text>
+      <text x="{{ x + 20 }}" y="143" text-anchor="middle">{{ d.rating }}★</text>{% endfor %}
+    </svg>
+  </section>
+</div>
+<h3 style="margin-top:2rem" class="reveal">Latest reviews</h3>
+{% if latest %}
+<div class="tablewrap reveal"><table><thead><tr><th>#</th><th>Review</th><th>Product</th><th>By</th><th>Rating</th><th>Status</th><th>Date</th></tr></thead><tbody>
+{% for r in latest %}<tr><td>{{ r.review_id }}</td><td>{{ r.title or '—' }}</td><td>{{ r.product_name }}</td><td>{{ r.full_name }}</td><td>{{ stars(r.rating) }}</td><td><span class="pill {{ 'inv' if r.status != 'Approved' }}">{{ r.status }}</span></td><td>{{ r.created_at[:10] }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty('No reviews yet') }}{% endif %}
+{% endblock %}

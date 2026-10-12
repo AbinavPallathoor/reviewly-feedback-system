@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, bars, empty %}
+{% block title %}Merchant dashboard{% endblock %}
+{% block content %}
+<div x-data="{ open: null, text: '', product: '', review: '' }" @keydown.escape.window="open = null">
+<div class="pagehead reveal"><div><h1>{{ m.company_name }}</h1><p>Reg. {{ m.business_registration_no }} · {{ m.contact_email }}</p></div></div>
+
+<div class="grid-stats">
+  <div class="card inv stat reveal"><div class="k">Avg rating</div><div class="v" data-count="{{ '%.2f'|format(agg.avg or 0) }}">{{ agg.avg or 0 }}</div></div>
+  <div class="card stat reveal"><div class="k">Reviews</div><div class="v" data-count="{{ agg.n }}">{{ agg.n }}</div></div>
+  <div class="card stat reveal"><div class="k">Products</div><div class="v" data-count="{{ products|length }}">{{ products|length }}</div></div>
+  <div class="card stat reveal"><div class="k">Verified</div><div class="v" data-count="{{ agg.verified or 0 }}">{{ agg.verified or 0 }}</div></div>
+</div>
+
+<div class="split">
+  <section class="card reveal"><h4>Rating distribution</h4>{% if agg.n %}{{ bars(dist) }}{% else %}{{ empty('No ratings yet') }}{% endif %}</section>
+  <section class="card reveal">
+    <h4>Sentiment summary</h4>
+    {% if agg.n %}
+    {% set neu = agg.n - (agg.pos or 0) - (agg.neg or 0) %}
+    <p class="muted" style="font-size:.9rem">Lexicon score averaged over {{ agg.n }} reviews: <strong style="color:var(--ink)">{{ agg.sent }}</strong> ({{ sentiment_label(agg.sent) }})</p>
+    <div class="bars">
+      {% for label, n in [('Positive', agg.pos or 0), ('Neutral', neu), ('Negative', agg.neg or 0)] %}
+      <div class="bar" style="grid-template-columns:4.5rem 1fr 2.4rem"><span>{{ label }}</span><div class="track"><div class="fill" data-w="{{ (100 * n / agg.n)|round|int }}"></div></div><span class="n">{{ n }}</span></div>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty('No reviews to analyse') }}{% endif %}
+  </section>
+</div>
+
+<h3 style="margin-top:2rem" class="reveal">Your products</h3>
+{% if products %}
+<div class="tablewrap reveal"><table>
+  <thead><tr><th>Product</th><th>Category</th><th>SKU</th><th>Rating</th><th>Reviews</th><th>Verified</th></tr></thead>
+  <tbody>{% for p in products %}<tr><td><a href="{{ url_for('product_detail', pid=p.product_id) }}">{{ p.product_name }}</a></td><td>{{ p.category_name }}</td><td><code>{{ p.sku }}</code></td><td>{{ stars(p.avg_rating) }} {{ '%.1f'|format(p.avg_rating) }}</td><td>{{ p.total_reviews }}</td><td>{{ p.verified_count }}</td></tr>{% endfor %}</tbody>
+</table></div>
+{% else %}{{ empty('No products yet', 'Ask an admin to add products to your store.') }}{% endif %}
+
+<h3 style="margin-top:2rem" class="reveal">Recent reviews <small class="muted">· unanswered first</small></h3>
+{% if recent %}
+<div class="card reveal">
+  {% for r in recent %}
+  <div class="review">
+    <div class="row between"><div class="row">{{ stars(r.rating) }}<span class="pill">{{ r.product_name }}</span><span class="pill dash">{{ sentiment_label(r.sentiment_score) }}</span>{% if r.is_verified_purchase %}<span class="pill inv">✓ Verified</span>{% endif %}</div><span class="who">{{ r.created_at[:10] }}</span></div>
+    <h4>{{ r.title or 'Untitled review' }}</h4><p>{{ r.review_text }}</p>
+    <div class="row between"><span class="who">by {{ r.full_name }}</span>
+      <button class="sm {{ 'ghost' if r.response_text }}" @click="open = {{ r.review_id }}; text = {{ (r.response_text or '')|tojson|forceescape }}; product = {{ r.product_name|tojson|forceescape }}; review = {{ r.review_text|tojson|forceescape }}">{{ 'Edit reply' if r.response_text else 'Reply' }}</button></div>
+    {% if r.response_text %}<div class="response"><strong>Your reply</strong> <span class="muted">· {{ r.responded_at[:10] }}</span><br>{{ r.response_text }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% else %}{{ empty('No reviews yet', 'Reviews of your products will appear here.') }}{% endif %}
+
+<template x-teleport="body">
+  <div class="drawer-wrap" x-show="open" x-cloak>
+    <div class="overlay" style="position:absolute" x-show="open" x-transition.opacity.duration.200ms @click="open = null"></div>
+    <form class="drawer" method="post" :action="'/merchant/reply/' + open" x-show="open"
+          x-transition:enter="t-slide-enter" x-transition:enter-start="translate-x" x-transition:leave="t-slide-leave" x-transition:leave-end="translate-x">
+      <div class="row between"><h3 style="margin:0">Public reply</h3><button type="button" class="ghost sm" @click="open = null">✕</button></div>
+      <p class="muted" style="font-size:.85rem;margin-top:.5rem" x-text="product"></p>
+      <blockquote style="font-size:.9rem" x-text="review"></blockquote>
+      <label>Your reply<textarea name="response_text" rows="6" x-model="text" placeholder="Thank the customer or address their concern…"></textarea></label>
+      <small class="err" x-show="text.trim().length > 0 && text.trim().length < 5">Reply must be at least 5 characters.</small>
+      <p class="muted" style="font-size:.8rem">One public reply per review. Saving again updates it.</p>
+      <button type="submit" :disabled="text.trim().length < 5">Publish reply</button>
+    </form>
+  </div>
+</template>
+</div>
+<style>.translate-x { transform: translateX(100%); }</style>
+{% endblock %}

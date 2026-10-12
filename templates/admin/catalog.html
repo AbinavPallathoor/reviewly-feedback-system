@@ -1,0 +1,35 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import stars, empty %}
+{% block title %}Products & Categories{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Products &amp; Categories</h1><p>{{ products|length }} products in {{ categories|length }} categories</p></div></div>
+<div class="split">
+  <form class="card reveal" method="post" action="{{ url_for('admin_add_category') }}" x-data="{ n: '' }">
+    <h4>Add category</h4>
+    <label>Name<input name="category_name" x-model="n" required minlength="2" placeholder="e.g. Sports"></label>
+    <small class="err" x-show="n.length === 1" x-cloak>At least 2 characters.</small>
+    <label>Description<input name="description" placeholder="Optional"></label>
+    <button class="sm" :disabled="n.trim().length < 2">Add category</button>
+  </form>
+  <form class="card reveal" method="post" action="{{ url_for('admin_add_product') }}">
+    <h4>Add product</h4>
+    {% if merchants and categories %}
+    <label>Name<input name="product_name" required minlength="2"></label>
+    <div class="row" style="flex-wrap:nowrap"><label style="flex:1">SKU<input name="sku" required minlength="3" placeholder="XX-YY-000"></label>
+    <label style="flex:1">Merchant<select name="merchant_id" required><option value="">Choose…</option>{% for m in merchants %}<option value="{{ m.merchant_id }}">{{ m.company_name }}</option>{% endfor %}</select></label>
+    <label style="flex:1">Category<select name="category_id" required><option value="">Choose…</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></label></div>
+    <button class="sm">Add product</button>
+    {% else %}{{ empty('Need a merchant and a category first') }}{% endif %}
+  </form>
+</div>
+<h3 style="margin-top:2rem" class="reveal">Categories</h3>
+{% if categories %}
+<div class="grid-auto">{% for c in categories %}<div class="card hover reveal"><div class="row between"><strong>{{ c.category_name }}</strong><span class="pill">{{ c.n }} products</span></div><small class="muted">{{ c.description or 'No description' }}</small></div>{% endfor %}</div>
+{% else %}{{ empty('No categories yet') }}{% endif %}
+<h3 style="margin-top:2rem" class="reveal">Products</h3>
+{% if products %}
+<div class="tablewrap reveal"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th>Merchant</th><th>Rating</th><th>Reviews</th></tr></thead><tbody>
+{% for p in products %}<tr><td>{{ p.product_id }}</td><td><a href="{{ url_for('product_detail', pid=p.product_id) }}">{{ p.product_name }}</a></td><td><code>{{ p.sku }}</code></td><td>{{ p.category_name }}</td><td>{{ p.company_name }}</td><td>{{ stars(p.avg_rating) }} {{ '%.1f'|format(p.avg_rating) }}</td><td>{{ p.total_reviews }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty('No products yet') }}{% endif %}
+{% endblock %}

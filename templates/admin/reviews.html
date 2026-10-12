@@ -1,0 +1,27 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import stars, empty %}
+{% block title %}Reviews{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Reviews</h1><p>{{ reviews|length }} result{{ 's' if reviews|length != 1 }}</p></div></div>
+<form class="toolbar reveal" method="get">
+  <input type="search" name="q" value="{{ term }}" placeholder="Search title, text, product, author…">
+  <select name="status" style="flex:0 0 160px">
+    <option value="">All statuses</option>
+    {% for s in ['Approved', 'Pending', 'Rejected'] %}<option {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}
+  </select>
+  <button class="sm">Filter</button>{% if term or status %}<a href="{{ url_for('admin_reviews') }}" class="muted">Clear</a>{% endif %}
+</form>
+{% if reviews %}
+<div class="tablewrap reveal"><table>
+<thead><tr><th>#</th><th>Review</th><th>Product</th><th>Author</th><th>Rating</th><th>Helpful</th><th>Reports</th><th>Status</th></tr></thead>
+<tbody>{% for r in reviews %}<tr>
+  <td>{{ r.review_id }}</td>
+  <td style="max-width:280px"><strong>{{ r.title or '—' }}</strong><br><small class="muted">{{ r.review_text[:80] }}{{ '…' if r.review_text|length > 80 }}</small></td>
+  <td>{{ r.product_name }}</td><td>{{ r.full_name }}{% if r.is_verified_purchase %} <span class="pill">✓</span>{% endif %}</td>
+  <td>{{ stars(r.rating) }}</td><td>{{ '%+d'|format(r.score) }}</td><td>{{ r.reports }}</td>
+  <td><form class="inline" method="post" action="{{ url_for('admin_review_status', rid=r.review_id) }}">
+    <select name="status" onchange="this.form.submit()" aria-label="Status">{% for s in ['Approved', 'Pending', 'Rejected'] %}<option {{ 'selected' if r.status == s }}>{{ s }}</option>{% endfor %}</select>
+  </form></td>
+</tr>{% endfor %}</tbody></table></div>
+{% else %}{{ empty('No reviews match', 'Try clearing the filters.', '⌕') }}{% endif %}
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_macros.html" import err %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<div class="authbox">
+  <article class="card reveal">
+    <h2 style="margin-bottom:.25rem">Create your account</h2>
+    <p class="muted">Customer accounts can review, vote and report.</p>
+    <form method="post" novalidate>
+      <label>Full name<input name="full_name" value="{{ form.full_name or '' }}" required {% if errors.full_name %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'full_name') }}
+      <label>Email<input type="email" name="email" value="{{ form.email or '' }}" required {% if errors.email %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'email') }}
+      <label>Password<input type="password" name="password" minlength="6" required {% if errors.password %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'password') }}
+      <label>Confirm password<input type="password" name="confirm" required {% if errors.confirm %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'confirm') }}
+      <button type="submit">Sign up</button>
+    </form>
+    <p class="muted" style="font-size:.9rem;margin:0">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+  </article>
+</div>
+{% endblock %}

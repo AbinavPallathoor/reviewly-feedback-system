@@ -1,0 +1,28 @@
+{% macro stars(n, cls='') -%}
+<span class="stars {{ cls }}" aria-label="{{ n }} out of 5">{% for i in range(1, 6) %}{% if i <= (n or 0) + 0.25 %}★{% else %}<span class="off">☆</span>{% endif %}{% endfor %}</span>
+{%- endmacro %}
+
+{% macro bars(dist) -%}
+<div class="bars">
+  {% for d in dist %}
+  <div class="bar"><span>{{ d.rating }} ★</span><div class="track"><div class="fill" data-w="{{ d.pct }}"></div></div><span class="n">{{ d.count }}</span></div>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{% macro empty(title, text='', glyph='○') -%}
+<div class="empty"><div class="glyph">{{ glyph }}</div><b>{{ title }}</b>{{ text }}</div>
+{%- endmacro %}
+
+{% macro err(errors, key) -%}
+{% if errors and errors.get(key) %}<small class="err">{{ errors[key] }}</small>{% endif %}
+{%- endmacro %}
+
+{% macro star_input(name, value=0, size='') -%}
+<div x-data="stars({{ value or 0 }})" class="starinput {{ size }}" @mouseleave="hover = 0" role="radiogroup" aria-label="{{ name }}">
+  <input type="hidden" name="{{ name }}" :value="value || ''">
+  <template x-for="i in 5" :key="i">
+    <span :class="i <= shown && 'on'" @mouseenter="hover = i" @click="value = i" x-text="i <= shown ? '★' : '☆'" role="radio" :aria-checked="i === value"></span>
+  </template>
+</div>
+{%- endmacro %}

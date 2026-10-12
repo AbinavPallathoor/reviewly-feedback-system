@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_macros.html" import err %}
+{% block title %}Log in{% endblock %}
+{% block content %}
+<div class="authbox">
+  <article class="card reveal">
+    <h2 style="margin-bottom:.25rem">Welcome back</h2>
+    <p class="muted">Log in to write reviews, vote and manage feedback.</p>
+    <form method="post" novalidate>
+      <label>Email
+        <input type="email" name="email" value="{{ request.form.email or '' }}" autocomplete="email" required {% if errors.email %}aria-invalid="true"{% endif %}>
+      </label>{{ err(errors, 'email') }}
+      <label>Password
+        <input type="password" name="password" autocomplete="current-password" required {% if errors.password %}aria-invalid="true"{% endif %}>
+      </label>{{ err(errors, 'password') }}
+      <button type="submit">Log in</button>
+    </form>
+    <p class="muted" style="font-size:.9rem;margin:0">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
+    <div class="cheat"><strong>Demo logins</strong> (password: <code>password</code>): admin@reviewly.test · northwind@reviewly.test · hearth@reviewly.test · priya@reviewly.test</div>
+  </article>
+</div>
+{% endblock %}

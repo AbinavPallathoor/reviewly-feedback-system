@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, bars, empty, star_input %}
+{% block title %}{{ p.product_name }}{% endblock %}
+{% block content %}
+<div x-data="{ report: null, reason: '' }" @keydown.escape.window="report = null">
+<p class="reveal" style="margin-bottom:1rem"><a href="{{ url_for('products', cat=p.category_id) }}" class="muted">← {{ p.category_name }}</a></p>
+<div class="split-3-2">
+  <section class="card reveal">
+    <div class="row"><span class="pill">{{ p.category_name }}</span><span class="pill dash">SKU {{ p.sku }}</span></div>
+    <h1 style="margin:.6rem 0 .2rem">{{ p.product_name }}</h1>
+    <p class="muted">Sold by <strong>{{ p.company_name }}</strong></p>
+    <div class="row" style="gap:1rem;align-items:end">
+      <div class="stat"><div class="v" data-count="{{ '%.1f'|format(p.avg_rating) }}">{{ '%.1f'|format(p.avg_rating) }}</div></div>
+      <div>{{ stars(p.avg_rating, 'lg') }}<div class="muted" style="font-size:.85rem">{{ p.total_reviews }} reviews · {{ p.verified_count }} verified</div></div>
+    </div>
+  </section>
+  <section class="card reveal">
+    <h4 style="margin-bottom:.8rem">Rating distribution</h4>
+    {{ bars(dist) }}
+  </section>
+</div>
+
+<div class="crit reveal" style="margin:1.25rem 0">
+  {% for c in CRITERIA %}
+  <div class="card"><div class="muted" style="font-size:.8rem;text-transform:uppercase;letter-spacing:.08em">{{ c }}</div>
+    <div class="num">{{ crit.get(c) or '–' }}</div>{{ stars(crit.get(c) or 0) }}</div>
+  {% endfor %}
+</div>
+
+<div class="split-3-2">
+  <section class="card reveal">
+    <div class="row between"><h3 style="margin:0">Reviews</h3><span class="muted" style="font-size:.85rem">Most helpful first</span></div>
+    {% for r in reviews %}
+    <div class="review">
+      <div class="row between">
+        <div class="row">{{ stars(r.rating) }}
+          {% if r.is_verified_purchase %}<span class="pill inv">✓ Verified Buyer</span>{% endif %}
+          {% if r.status != 'Approved' %}<span class="pill dash">{{ r.status }} · only you can see this</span>{% endif %}
+        </div>
+        <span class="who">{{ r.created_at[:10] }}</span>
+      </div>
+      <h4>{{ r.title or 'Untitled review' }}</h4>
+      <p>{{ r.review_text }}</p>
+      {% if r.criteria %}<div class="row" style="margin-bottom:.5rem">{% for part in r.criteria.split(',') %}<span class="pill">{{ part.replace(':', ' ') }}/5</span>{% endfor %}</div>{% endif %}
+      {% if r.media_url %}<div class="media" style="margin-bottom:.5rem">{% if r.media_type == 'image' %}<img src="{{ r.media_url }}" alt="Review photo" loading="lazy">{% else %}<a href="{{ r.media_url }}" target="_blank" rel="noopener">View attached media ↗</a>{% endif %}</div>{% endif %}
+      <div class="row between">
+        <span class="who">by <strong>{{ r.full_name }}</strong></span>
+        <div class="row" x-data="voter({{ r.review_id }}, {{ r.up }}, {{ r.down }}, {{ r.my_vote|tojson|forceescape }}, {{ (g.user is not none)|tojson }})">
+          <span class="who">Helpful?</span>
+          <button class="vote" :class="mine === 'Up' && 'on'" @click="vote('Up', $el)" aria-label="Upvote">▲ <span x-text="up">{{ r.up }}</span></button>
+          <button class="vote" :class="mine === 'Down' && 'on'" @click="vote('Down', $el)" aria-label="Downvote">▼ <span x-text="down">{{ r.down }}</span></button>
+          {% if g.user and g.user.user_id != r.user_id %}<button class="linkbtn" @click="report = {{ r.review_id }}; reason = ''">Report</button>{% endif %}
+        </div>
+      </div>
+      {% if r.response_text %}<div class="response"><strong>Response from {{ p.company_name }}</strong> <span class="muted">· {{ r.responded_at[:10] }}</span><br>{{ r.response_text }}</div>{% endif %}
+    </div>
+    {% else %}
+    {{ empty('No reviews yet', 'Be the first to share your experience.', '☆') }}
+    {% endfor %}
+  </section>
+
+  <aside class="card reveal" id="write">
+    {% if not g.user %}
+      {{ empty('Want to leave a review?', '', '✎') }}
+      <p style="text-align:center;margin-top:1rem"><a href="{{ url_for('login', next=request.path) }}">Log in</a> or <a href="{{ url_for('register') }}">sign up</a></p>
+    {% elif g.user.role != 'Customer' %}
+      {{ empty('Reviews are written by customers', 'You are logged in as ' ~ g.user.role ~ '.', '✎') }}
+    {% else %}
+      <h3 style="margin-bottom:.25rem">{{ 'Edit your review' if mine else 'Write a review' }}</h3>
+      <p class="muted" style="font-size:.85rem">{% if purchased %}You bought this — your review will carry the <strong>Verified Buyer</strong> badge.{% else %}No purchase on record, so this won't be marked verified.{% endif %}</p>
+      <form method="post" action="{{ url_for('save_review', pid=p.product_id) }}" x-data="{ text: {{ (mine.review_text if mine else '')|tojson|forceescape }}, tried: false }" @submit="tried = true; if (text.trim().length < 10 || ['rating','quality','delivery','value'].some(n => !$el.elements[n].value)) { $event.preventDefault(); toast('Add all four ratings and at least 10 characters.', 'error') }">
+        <label>Overall</label>{{ star_input('rating', mine.rating if mine else 0) }}
+        <div class="row" style="justify-content:space-between;margin:.75rem 0">
+          {% for c in CRITERIA %}<div><small class="muted">{{ c }}</small>{{ star_input(c.lower(), mine.criteria.get(c) if mine else 0, 'sm') }}</div>{% endfor %}
+        </div>
+        <label>Title<input name="title" maxlength="150" value="{{ mine.title if mine and mine.title else '' }}" placeholder="Sum it up"></label>
+        <label>Your review<textarea name="review_text" rows="4" x-model="text" :aria-invalid="tried && text.trim().length < 10" placeholder="What did you like or dislike?"></textarea></label>
+        <small class="muted" style="display:block;margin:-.6rem 0 .8rem" x-text="text.trim().length < 10 ? (10 - text.trim().length) + ' more characters needed' : '✓ Looks good'"></small>
+        <label>Photo / media URL <small class="muted">(optional)</small><input type="url" name="media_url" value="{{ mine.media_url if mine and mine.media_url else '' }}" placeholder="https://…"></label>
+        <button type="submit">{{ 'Update review' if mine else 'Post review' }}</button>
+      </form>
+    {% endif %}
+  </aside>
+</div>
+
+<template x-teleport="body">
+  <div class="overlay" x-show="report" x-cloak @click.self="report = null" x-transition.opacity.duration.200ms>
+    <form class="modal" method="post" :action="'/reviews/' + report + '/report'" x-show="report" x-transition.scale.95.duration.200ms>
+      <h3 style="margin-bottom:.25rem">Report review</h3>
+      <p class="muted" style="font-size:.9rem">Three reports will hide a review until a moderator checks it.</p>
+      <label>Reason
+        <select x-model="reason" @change="$refs.r.value = reason">
+          <option value="">Choose a reason…</option><option>Spam or advertising</option><option>Offensive language</option><option>Not about this product</option><option>Fake or misleading</option>
+        </select>
+      </label>
+      <label>Details<textarea name="reason" x-ref="r" rows="3" x-model="reason" placeholder="Tell us what's wrong" required minlength="5"></textarea></label>
+      <small class="err" x-show="reason.trim().length > 0 && reason.trim().length < 5">At least 5 characters.</small>
+      <div class="row" style="justify-content:flex-end"><button type="button" class="ghost sm" @click="report = null">Cancel</button><button type="submit" class="sm" :disabled="reason.trim().length < 5">Submit report</button></div>
+    </form>
+  </div>
+</template>
+</div>
+{% endblock %}

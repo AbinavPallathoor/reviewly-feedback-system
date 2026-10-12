@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Reviewly{% endblock %} · Reviewly</title>
+  <script>try{document.documentElement.dataset.theme=localStorage.getItem("reviewly-theme")||"light"}catch(e){}</script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% block shell %}
+<nav class="topnav">
+  <div class="inner">
+    <a class="brand" href="{{ url_for('index') }}"><i>R</i>Reviewly</a>
+    <div class="navlinks">
+      <a href="{{ url_for('products') }}" class="{{ 'active' if ep.startswith('product') }}">Products</a>
+      {% if g.user and g.user.role == 'Merchant' %}<a href="{{ url_for('merchant_dashboard') }}" class="{{ 'active' if ep.startswith('merchant') }}">Dashboard</a>{% endif %}
+      {% if g.user and g.user.role == 'Admin' %}<a href="{{ url_for('admin_overview') }}">Admin</a>{% endif %}
+      <a href="{{ url_for('schema') }}" class="{{ 'active' if ep == 'schema' }}">Schema</a>
+    </div>
+    <div class="navright">
+      <button class="iconbtn" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+      {% if g.user %}
+        <span class="pill">{{ g.user.role }}</span>
+        <span class="muted">{{ g.user.full_name }}</span>
+        <a href="{{ url_for('logout') }}">Log out</a>
+      {% else %}
+        <a href="{{ url_for('login') }}" class="{{ 'active' if ep == 'login' }}">Log in</a>
+        <a href="{{ url_for('register') }}"><strong>Sign up</strong></a>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+<main class="wrap">{% block content %}{% endblock %}</main>
+{% endblock %}
+
+<div class="toasts" x-data='toaster({{ get_flashed_messages(with_categories=true)|tojson }})' aria-live="polite">
+  <template x-for="t in items" :key="t.id">
+    <div class="toast" :class="t.kind" x-show="t.show" x-transition.opacity.duration.200ms @click="dismiss(t.id)">
+      <b x-text="t.kind === 'error' ? '!' : '✓'"></b><span x-text="t.message"></span>
+    </div>
+  </template>
+</div>
+{% block scripts %}{% endblock %}
+</body>
+</html>

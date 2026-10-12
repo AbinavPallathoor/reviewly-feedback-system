@@ -1,0 +1,26 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import stars, empty %}
+{% block title %}Moderation{% endblock %}
+{% block content %}
+<div class="pagehead reveal"><div><h1>Moderation queue</h1><p>Approve a report to remove the review. Reject it to keep the review visible.</p></div></div>
+{% if queue %}
+<div class="stack">
+{% for r in queue %}
+<article class="card hover reveal" style="margin:0">
+  <div class="row between">
+    <div class="row"><span class="pill inv">⚑ {{ r.report_reason }}</span><span class="pill">{{ r.pending_reports }} pending report{{ 's' if r.pending_reports != 1 }}</span><span class="pill dash">review {{ r.review_status }}</span></div>
+    <span class="muted" style="font-size:.8rem">reported by {{ r.reporter_name }} · {{ r.reported_at[:16] }}</span>
+  </div>
+  <div class="row" style="margin-top:.75rem">{{ stars(r.rating) }}<strong>{{ r.title or 'Untitled review' }}</strong></div>
+  <p style="margin:.4rem 0;color:var(--ink-2)">{{ r.review_text }}</p>
+  <div class="row between"><span class="muted" style="font-size:.85rem">by {{ r.author_name }} on <a href="{{ url_for('product_detail', pid=r.product_id) }}">{{ r.product_name }}</a></span>
+    <div class="row">
+      <form class="inline" method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='reject') }}"><button class="ghost sm">Reject report · keep</button></form>
+      <form class="inline" method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='approve') }}"><button class="sm">Approve · remove review</button></form>
+    </div>
+  </div>
+</article>
+{% endfor %}
+</div>
+{% else %}{{ empty('Queue is clear', 'No pending reports. Nice.', '✓') }}{% endif %}
+{% endblock %}

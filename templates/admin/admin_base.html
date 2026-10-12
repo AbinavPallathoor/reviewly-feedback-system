@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block shell %}
+{% set pending = pending_count() %}
+<div class="admin-shell" x-data="{ nav: false }">
+  <aside class="side" :class="nav && 'open'">
+    <a class="brand" href="{{ url_for('admin_overview') }}"><i>R</i>Reviewly <span class="pill" style="margin-left:.25rem">Admin</span></a>
+    <div class="label">Console</div>
+    <a href="{{ url_for('admin_overview') }}" class="{{ 'active' if ep == 'admin_overview' }}">◧ Overview</a>
+    <a href="{{ url_for('admin_moderation') }}" class="{{ 'active' if ep == 'admin_moderation' }}">⚑ Moderation {% if pending %}<span class="cnt">{{ pending }}</span>{% endif %}</a>
+    <a href="{{ url_for('admin_reviews') }}" class="{{ 'active' if ep == 'admin_reviews' }}">☰ Reviews</a>
+    <a href="{{ url_for('admin_users') }}" class="{{ 'active' if ep == 'admin_users' }}">◯ Users</a>
+    <a href="{{ url_for('admin_catalog') }}" class="{{ 'active' if ep == 'admin_catalog' }}">▦ Products &amp; Categories</a>
+    <a href="{{ url_for('admin_graph') }}" class="{{ 'active' if ep == 'admin_graph' }}">⋰ Graph view</a>
+    <div class="label">Site</div>
+    <a href="{{ url_for('products') }}">↗ Storefront</a>
+    <a href="{{ url_for('schema') }}">⌗ Schema</a>
+    <div class="foot"><button class="iconbtn" onclick="toggleTheme()" title="Toggle dark mode">◐</button><span class="muted" style="flex:1">{{ g.user.full_name }}</span><a href="{{ url_for('logout') }}">Log out</a></div>
+  </aside>
+  <div style="min-width:0">
+    <div class="mobile-bar"><button class="iconbtn" @click="nav = !nav" aria-label="Menu">☰</button><strong>Reviewly Admin</strong></div>
+    <main class="admin-main" @click="nav = false">{% block content %}{% endblock %}</main>
+  </div>
+</div>
+{% endblock %}
