@@ -1,0 +1,64 @@
+{% extends "admin/admin_base.html" %}
+{% from "_macros.html" import empty, page_head %}
+{% block title %}API &amp; Integrity{% endblock %}
+{% block content %}
+{% call page_head('API & Integrity', 'Partner API clients, every signed call, and the review ledger') %}
+  <form method="post"><button class="btn btn-neutral btn-sm"><i data-lucide="shield-check" class="size-4"></i>Verify ledger</button></form>
+{% endcall %}
+
+{% if result %}
+<div role="alert" class="alert mb-4 {{ 'alert-success alert-soft' if result.ok else 'alert-error alert-soft' }}">
+  <i data-lucide="{{ 'shield-check' if result.ok else 'shield-alert' }}" class="size-6"></i>
+  <div>
+    <p class="font-bold">{{ 'Ledger intact' if result.ok else 'Ledger problem found' }}</p>
+    <p class="text-sm">Recomputed {{ result.entries }} entries from GENESIS.
+      {% if result.bad %} First broken link at entry #{{ result.bad }}.{% endif %}
+      {% if result.mismatched %} Reviews whose content no longer matches the ledger:
+        {% for rid in result.mismatched %}<a class="link" href="{{ url_for('verify_review', rid=rid) }}">#{{ rid }}</a>{{ ', ' if not loop.last }}{% endfor %}.{% endif %}
+      {% if result.ok %} Every review matches its latest hash.{% endif %}</p>
+  </div>
+</div>
+{% endif %}
+
+<h2 class="text-lg font-bold mb-3">API clients</h2>
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100 mb-6">
+  <table class="table table-sm">
+    <thead><tr><th>Company</th><th>Key</th><th>Site</th><th class="text-right">Accepted</th><th class="text-right">Rejected</th><th class="text-right">Flagged</th><th class="text-right">Reviews</th><th>Last call</th></tr></thead>
+    <tbody>{% for c in clients %}<tr class="hover:bg-base-200">
+      <td><a class="link link-hover font-medium" href="{{ url_for('company', mid=c.merchant_id) }}">{{ c.company_name }}</a>{% if not c.is_active %} <span class="badge badge-xs badge-outline">paused</span>{% endif %}</td>
+      <td class="font-mono text-xs">{{ c.public_key }}</td><td class="font-mono text-xs">{{ c.site_url }}</td>
+      <td class="text-right tabular-nums">{{ c.accepted }}</td><td class="text-right tabular-nums">{{ c.rejected }}</td>
+      <td class="text-right tabular-nums">{{ c.flagged }}</td><td class="text-right tabular-nums">{{ c.reviews }}</td>
+      <td class="text-xs opacity-60 whitespace-nowrap">{{ c.last_used_at or '—' }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+
+<div class="grid gap-4 xl:grid-cols-5 items-start">
+  <section class="xl:col-span-3">
+    <h2 class="text-lg font-bold mb-3">Request log</h2>
+    {% if logs %}
+    <div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+      <table class="table table-xs">
+        <thead><tr><th>When</th><th>Client</th><th>Call</th><th>Code</th><th>Outcome / reason</th></tr></thead>
+        <tbody>{% for l in logs %}<tr class="hover:bg-base-200">
+          <td class="whitespace-nowrap opacity-60">{{ l.created_at[5:] }}</td>
+          <td class="whitespace-nowrap">{{ l.company_name or 'unknown key' }}</td>
+          <td class="font-mono whitespace-nowrap">{{ l.method }} {{ l.endpoint }}</td>
+          <td class="tabular-nums">{{ l.status_code }}</td>
+          <td><span class="{{ 'font-bold' if l.outcome != 'Accepted' }}">{{ l.outcome }}</span>{% if l.reason %} <span class="opacity-70">· {{ l.reason }}</span>{% endif %}</td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}{{ empty('No API calls yet', 'Start the example shops with run_all.py.', 'activity') }}{% endif %}
+  </section>
+  <section class="xl:col-span-2 card bg-base-100 border border-base-300"><div class="card-body p-5">
+    <h2 class="font-semibold">Ledger tail</h2>
+    <p class="text-xs opacity-60">Append-only: triggers refuse UPDATE and DELETE. {% for c in counts %}{{ c.n }} {{ c.event }}{{ ', ' if not loop.last }}{% endfor %}.</p>
+    <ol class="mt-1 space-y-2">{% for e in ledger %}
+      <li class="text-xs"><span class="font-semibold">#{{ e.ledger_id }} {{ e.event }}</span> <a class="link opacity-70" href="{{ url_for('verify_review', rid=e.review_id) }}">review {{ e.review_id }}</a>
+        <p class="font-mono opacity-60 break-all">{{ e.entry_hash }}</p></li>
+    {% endfor %}</ol>
+  </div></section>
+</div>
+{% endblock %}

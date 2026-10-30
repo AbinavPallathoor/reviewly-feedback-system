@@ -1,0 +1,34 @@
+{% extends "admin/base.html" %}
+{% block title %}Home{% endblock %}
+{% block content %}
+<h1>Home</h1>
+<div class="stats">
+  <div class="stat"><small>Revenue</small><b>{{ money(stats.revenue) }}</b></div>
+  <div class="stat"><small>Orders</small><b>{{ stats.orders }}</b><span>{{ stats.week or 0 }} in the last 7 days</span></div>
+  <div class="stat"><small>Customers</small><b>{{ stats.customers }}</b></div>
+  <div class="stat"><small>Reviewly rating</small>
+    {% if avg is not none %}<b>{{ '%.2f'|format(avg) }} <span class="star">★</span></b><span>{{ reviews }} published reviews</span>
+    {% elif ratings is none %}<b>—</b><span>Reviewly unreachable</span>{% else %}<b>—</b><span>No reviews yet</span>{% endif %}</div>
+</div>
+
+<div class="grid2">
+  <section class="panel">
+    <div class="panel-head"><h2>Recent orders</h2><a href="{{ url_for('admin.orders') }}">View all</a></div>
+    <table>
+      <thead><tr><th>Order</th><th>Customer</th><th>Item</th><th class="r">Total</th></tr></thead>
+      <tbody>{% for o in recent %}<tr><td class="mono">{{ o.order_ref }}</td><td>{{ o.full_name }}</td><td>{{ o.name }}</td><td class="r">{{ money(o.price_cents) }}</td></tr>{% endfor %}</tbody>
+    </table>
+  </section>
+  <section class="panel">
+    <div class="panel-head"><h2>Products</h2><a href="{{ url_for('admin.reviews') }}">Reviews</a></div>
+    <table>
+      <thead><tr><th>Product</th><th class="r">Price</th><th class="r">Sold</th><th class="r">Rating</th></tr></thead>
+      <tbody>{% for p in products %}{% set r = ratings.get(p.sku) if ratings else none %}
+        <tr><td><div class="prod"><img src="{{ url_for('static', filename='img/' ~ p.sku ~ '.jpg') }}" alt=""><span>{{ p.name }}<small class="mono">{{ p.sku }}</small></span></div></td>
+          <td class="r">{{ money(p.price_cents) }}</td><td class="r">{{ p.sold }}</td>
+          <td class="r">{% if r and r.total %}<a href="{{ url_for('admin.reviews', sku=p.sku) }}">{{ '%.1f'|format(r.average) }} <span class="star">★</span> ({{ r.total }})</a>{% else %}<span class="muted">—</span>{% endif %}</td></tr>
+      {% endfor %}</tbody>
+    </table>
+  </section>
+</div>
+{% endblock %}

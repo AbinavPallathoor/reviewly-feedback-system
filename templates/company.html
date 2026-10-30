@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, bars, empty, page_head, product_thumb %}
+{% block title %}{{ m.company_name }}{% endblock %}
+{% block content %}
+<div class="breadcrumbs text-sm mb-2 pt-0"><ul><li><a href="{{ url_for('companies') }}">Companies</a></li><li class="opacity-60">{{ m.company_name }}</li></ul></div>
+{% call page_head(m.company_name, 'Reg. ' ~ m.business_registration_no ~ ' · reviews held and verified by Reviewly') %}
+  {% if m.site_url %}<a href="{{ m.site_url }}" target="_blank" rel="noopener" class="btn btn-sm btn-neutral"><i data-lucide="external-link" class="size-4"></i>Visit store</a>{% endif %}
+{% endcall %}
+
+<div class="grid gap-4 lg:grid-cols-3 mb-4">
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-6">
+    <p class="text-sm opacity-70">Average rating</p>
+    <p class="text-4xl font-semibold">{{ '%.1f'|format(agg.avg or 0) }}</p>
+    <p class="text-sm opacity-70">{{ agg.n }} reviews · {{ agg.verified or 0 }} verified purchases · {{ agg.replies }} public replies</p>
+    {% if m.public_key %}<p class="text-xs mt-2 flex items-center gap-1.5"><i data-lucide="plug" class="size-3.5"></i>Integrated via signed API. The company can't edit, hide or reorder these reviews.</p>{% endif %}
+  </div></section>
+  <section class="card bg-base-100 border border-base-300 lg:col-span-2"><div class="card-body p-6">
+    <h2 class="font-semibold mb-2">Rating distribution</h2>
+    {% if agg.n %}{{ bars(dist) }}{% else %}{{ empty('No reviews yet', '', 'bar-chart-3') }}{% endif %}
+  </div></section>
+</div>
+
+<div class="grid gap-4 lg:grid-cols-3 items-start">
+  <section class="lg:col-span-2 grid gap-3">
+    <h2 class="text-lg font-bold">Latest reviews</h2>
+    {% for r in recent %}
+    <article class="card bg-base-100 border border-base-300"><div class="card-body p-5 gap-1">
+      <div class="flex flex-wrap items-center gap-2">{{ stars(r.rating) }}<a class="badge badge-sm badge-outline" href="{{ url_for('product_detail', pid=r.product_id) }}">{{ r.product_name }}</a>
+        {% if r.is_verified_purchase %}<span class="badge badge-sm badge-soft badge-success">Verified</span>{% endif %}
+        <span class="text-xs opacity-50 ml-auto">via {{ r.source_name }} · {{ r.created_at[:10] }}</span></div>
+      <h3 class="font-semibold">{{ r.title or 'Untitled review' }}</h3>
+      <p class="text-sm opacity-80">{{ r.review_text }}</p>
+      <a href="{{ url_for('verify_review', rid=r.review_id) }}" class="link text-xs opacity-60 self-start">Verify</a>
+    </div></article>
+    {% else %}{{ empty('No reviews yet', '', 'message-square') }}{% endfor %}
+  </section>
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-5">
+    <h2 class="font-semibold">Products</h2>
+    <ul class="divide-y divide-base-300">
+      {% for p in products %}
+      <li><a href="{{ url_for('product_detail', pid=p.product_id) }}" class="flex items-center gap-3 py-2 hover:opacity-80">
+        {{ product_thumb(p, 'size-10 rounded-lg shrink-0 border border-base-300', 'text-xs') }}
+        <span class="min-w-0 flex-1 text-sm font-medium truncate">{{ p.product_name }}</span>
+        <span class="text-sm tabular-nums">{{ '%.1f'|format(p.avg_rating) }} ★</span></a></li>
+      {% else %}<li class="text-sm opacity-60 py-2">No products yet.</li>{% endfor %}
+    </ul>
+  </div></section>
+</div>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, star_input, page_head %}
+{% block title %}Your review receipt{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto" x-data="{ editing: false, text: {{ r.review_text|tojson|forceescape }} }">
+{% call page_head('Your review receipt', 'Keep this link private. It is the only way to edit your review.') %}
+  <a href="{{ url_for('verify_review', rid=r.review_id) }}" class="btn btn-sm"><i data-lucide="share-2" class="size-4"></i>Public record</a>
+{% endcall %}
+
+<article class="card bg-base-100 border border-base-300 mb-4"><div class="card-body p-5">
+  <div x-show="!editing">
+    <div class="flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2">{{ stars(r.rating, 'sm') }}<span class="text-sm opacity-60">{{ r.full_name }} · {{ r.email }}</span></div>
+      <button class="btn btn-sm" @click="editing = true"><i data-lucide="pencil" class="size-3.5"></i>Edit</button>
+    </div>
+    <h2 class="font-semibold text-lg mt-2">{{ r.title or 'Untitled review' }}</h2>
+    <p class="text-sm opacity-80 leading-relaxed mt-1">{{ r.review_text }}</p>
+    <p class="text-xs opacity-60 mt-3">This is exactly what Reviewly stored and what every partner website shows. If the shop showed you something different, that's worth reporting.</p>
+  </div>
+  <form x-show="editing" x-cloak method="post">
+    <fieldset class="fieldset"><legend class="fieldset-legend">Overall rating</legend>{{ star_input('rating', r.rating, 'lg') }}</fieldset>
+    <fieldset class="fieldset"><legend class="fieldset-legend">Title</legend><input class="input w-full" name="title" maxlength="150" value="{{ r.title or '' }}"></fieldset>
+    <fieldset class="fieldset"><legend class="fieldset-legend">Your review</legend>
+      <textarea class="textarea w-full h-32" name="review_text" x-model="text"></textarea>
+      <p class="label text-xs" x-text="text.trim().length < 10 ? (10 - text.trim().length) + ' more characters needed' : 'Saving adds an \'edited\' entry to the public ledger and keeps the old version.'"></p>
+    </fieldset>
+    <div class="flex gap-2 justify-end mt-2">
+      <button type="button" class="btn btn-ghost" @click="editing = false">Cancel</button>
+      <button class="btn btn-neutral" :disabled="text.trim().length < 10">Save changes</button>
+    </div>
+  </form>
+</div></article>
+{% include "_trail.html" %}
+</div>
+{% endblock %}

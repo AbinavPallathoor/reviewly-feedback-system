@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not cat %}
+<section class="hero">
+  <div class="wrap hero-row">
+    <div class="hero-copy">
+      <p class="eyebrow">New arrival</p>
+      <h1>Apex Runner 2</h1>
+      <p>Lighter foam, a breathable upper, and the same 8mm drop. Built for daily miles.</p>
+      <a class="btn" href="{{ url_for('product', sku='KV-RNR-01') }}">Shop now</a>
+    </div>
+    <img src="{{ url_for('static', filename='img/KV-RNR-01.jpg') }}" alt="Apex Runner 2">
+  </div>
+</section>
+{% endif %}
+<section class="wrap page">
+  <div class="list-head">
+    <h2>{{ cat or 'All products' }}</h2>
+    <span class="muted">{{ products|length }} item{{ 's' if products|length != 1 }}</span>
+  </div>
+  <div class="grid">
+    {% for p in products %}
+    <a href="{{ url_for('product', sku=p.sku) }}" class="tile">
+      <div class="tile-img"><img src="{{ url_for('static', filename='img/' ~ p.sku ~ '.jpg') }}" alt="{{ p.name }}" loading="lazy"></div>
+      <p class="tile-cat">{{ p.category }}</p>
+      <p class="tile-name">{{ p.name }}</p>
+      <span data-reviewly-stars="{{ p.sku }}" data-reviewly-key="{{ shop.public_key }}" data-star="#111"></span>
+      <p class="tile-price">{{ money(p.price_cents) }}</p>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

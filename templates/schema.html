@@ -1,12 +1,21 @@
 {% extends "base.html" %}
+{% from "_macros.html" import page_head %}
 {% block title %}Schema{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Database schema</h1><p>Read-only DDL pulled live from <code>sqlite_master</code>. Business rules live in the triggers.</p></div>
-<div class="row">{% for t, items in grouped.items() %}<a class="pill" href="#{{ t }}s">{{ items|length }} {{ t }}s</a>{% endfor %}</div></div>
+{% set icons = {'table': 'table-2', 'trigger': 'zap', 'view': 'eye'} %}
+{% call page_head('Database schema', 'Read-only DDL pulled live from sqlite_master. The business rules live in the triggers.') %}
+<div class="flex flex-wrap gap-2">{% for t, items in grouped.items() %}<a href="#{{ t }}s" class="btn btn-sm bg-base-100"><i data-lucide="{{ icons[t] }}" class="size-4"></i>{{ items|length }} {{ t }}s</a>{% endfor %}</div>
+{% endcall %}
 {% for t, items in grouped.items() %}
-<h3 id="{{ t }}s" class="reveal" style="margin-top:1.5rem;text-transform:capitalize">{{ t }}s</h3>
+<h2 id="{{ t }}s" class="text-lg font-bold capitalize mt-8 mb-3 flex items-center gap-2 scroll-mt-20"><i data-lucide="{{ icons[t] }}" class="size-5"></i>{{ t }}s</h2>
+<div class="grid gap-2">
 {% for o in items %}
-<details class="obj reveal" {{ 'open' if t != 'table' }}><summary>{{ o.name }} {% if t == 'trigger' %}<small class="muted">on {{ o.tbl_name }}</small>{% endif %}</summary><pre class="sql">{{ o.sql }}</pre></details>
+<div class="collapse collapse-arrow bg-base-100 border border-base-300">
+  <input type="checkbox" {{ 'checked' if t != 'table' }} aria-label="Toggle {{ o.name }}">
+  <div class="collapse-title font-mono text-sm font-semibold">{{ o.name }}{% if t == 'trigger' %} <span class="font-sans font-normal opacity-60">on {{ o.tbl_name }}</span>{% endif %}</div>
+  <div class="collapse-content"><pre class="bg-base-200 rounded-box p-4 text-xs leading-relaxed overflow-x-auto">{{ o.sql }}</pre></div>
+</div>
 {% endfor %}
+</div>
 {% endfor %}
 {% endblock %}

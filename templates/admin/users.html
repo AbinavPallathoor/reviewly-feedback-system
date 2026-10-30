@@ -1,13 +1,19 @@
 {% extends "admin/admin_base.html" %}
-{% from "_macros.html" import empty %}
+{% from "_macros.html" import empty, page_head %}
 {% block title %}Users{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Users</h1><p>{{ users|length }} accounts</p></div></div>
+{{ page_head('Users', users|length ~ ' accounts') }}
 {% if users %}
-<div class="tablewrap reveal"><table>
-<thead><tr><th>#</th><th>Name</th><th>Email</th><th>Role</th><th>Company</th><th>Reviews</th><th>Orders</th><th>Joined</th></tr></thead>
-<tbody>{% for u in users %}<tr><td>{{ u.user_id }}</td><td><strong>{{ u.full_name }}</strong></td><td>{{ u.email }}</td>
-<td><span class="pill {{ 'inv' if u.role != 'Customer' }}">{{ u.role }}</span></td><td>{{ u.company_name or '—' }}</td><td>{{ u.reviews }}</td><td>{{ u.orders }}</td><td>{{ u.created_at[:10] }}</td></tr>{% endfor %}</tbody>
-</table></div>
-{% else %}{{ empty('No users') }}{% endif %}
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+  <table class="table">
+    <thead><tr><th>User</th><th>Role</th><th>Company</th><th class="text-right">Reviews</th><th class="text-right">Orders</th><th>Joined</th></tr></thead>
+    <tbody>{% for u in users %}<tr class="hover:bg-base-200">
+      <td><div class="flex items-center gap-3"><span class="grid place-items-center size-9 rounded-full bg-base-200 border border-base-300 text-sm font-bold">{{ u.full_name[:1] }}</span>
+        <div><p class="font-medium">{{ u.full_name }}</p><p class="text-xs opacity-60">{{ u.email }}</p></div></div></td>
+      <td><span class="badge badge-sm {{ 'badge-neutral' if u.role != 'Customer' else 'badge-ghost' }}">{{ u.role }}</span></td>
+      <td>{{ u.company_name or '—' }}</td><td class="text-right">{{ u.reviews }}</td><td class="text-right">{{ u.orders }}</td><td class="opacity-70 whitespace-nowrap">{{ u.created_at[:10] }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% else %}{{ empty('No users', '', 'users') }}{% endif %}
 {% endblock %}

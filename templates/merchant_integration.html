@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% from "_macros.html" import empty, page_head %}
+{% block title %}API &amp; widget{% endblock %}
+{% block content %}
+{% call page_head('API & widget', m.company_name ~ ' · send verified reviews to Reviewly and show them on your site') %}
+  <a href="{{ url_for('merchant_dashboard') }}" class="btn btn-sm"><i data-lucide="arrow-left" class="size-4"></i>Dashboard</a>
+{% endcall %}
+{% if not client %}
+  {{ empty('No API access yet', 'Ask a Reviewly admin to issue an API key for ' ~ m.company_name ~ '.', 'plug') }}
+{% else %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+  {% for label, value, icon in [('Accepted calls', client.accepted, 'check'), ('Rejected calls', client.rejected, 'x'), ('Held for review', client.flagged, 'flag'), ('Reviews via API', client.reviews, 'message-square')] %}
+  <div class="stats bg-base-100 border border-base-300"><div class="stat">
+    <div class="stat-figure opacity-30"><i data-lucide="{{ icon }}" class="size-7"></i></div>
+    <div class="stat-title">{{ label }}</div><div class="stat-value text-3xl">{{ value }}</div>
+  </div></div>
+  {% endfor %}
+</div>
+
+<div class="grid gap-4 lg:grid-cols-2 mb-4">
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-6">
+    <div class="flex items-center justify-between"><h2 class="font-semibold">Credentials</h2>
+      <span class="badge {{ 'badge-soft badge-success' if client.is_active else 'badge-soft badge-warning' }}">{{ 'Active' if client.is_active else 'Paused' }}</span></div>
+    <dl class="grid grid-cols-[7rem_1fr] gap-y-2 text-sm mt-1">
+      <dt class="opacity-60">Public key</dt><dd class="font-mono">{{ client.public_key }}</dd>
+      <dt class="opacity-60">Secret</dt><dd class="font-mono">{{ secret_hint }}</dd>
+      <dt class="opacity-60">Site</dt><dd class="font-mono">{{ client.site_url }}</dd>
+      <dt class="opacity-60">Last call</dt><dd>{{ client.last_used_at or 'never' }}</dd>
+    </dl>
+    <p class="text-xs opacity-60 mt-2">Sign each call with HMAC-SHA256 over <code>timestamp.nonce.METHOD.path.body</code>. Reviewly refuses calls older than 5 minutes and any nonce it has seen before.</p>
+    <form method="post" action="{{ url_for('merchant_toggle_key') }}" class="mt-2">
+      <button class="btn btn-sm">{{ 'Pause key' if client.is_active else 'Resume key' }}</button>
+    </form>
+  </div></section>
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-6">
+    <h2 class="font-semibold">Show reviews on your site</h2>
+    <p class="text-sm opacity-70">Reviews load straight from Reviewly into the shopper's browser, so your server never handles them, and shoppers can check that for themselves.</p>
+    <pre class="bg-base-200 rounded-box p-3 text-xs overflow-x-auto mt-1"><code>&lt;div data-reviewly-sku="YOUR-SKU"
+     data-reviewly-key="{{ client.public_key }}"
+     data-accent="#111" data-radius="12"&gt;&lt;/div&gt;
+&lt;script async src="{{ url_for('api.widget', _external=True) }}"&gt;&lt;/script&gt;</code></pre>
+    <h3 class="font-semibold text-sm mt-2">Where your reviews come from</h3>
+    <div class="flex flex-wrap gap-2">{% for s in sources %}<span class="badge badge-outline">{{ s.source_name }} · {{ s.n }}</span>{% endfor %}</div>
+  </div></section>
+</div>
+
+<h2 class="text-lg font-bold mb-3">Recent API calls</h2>
+{% if logs %}
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+  <table class="table table-sm">
+    <thead><tr><th>When</th><th>Call</th><th>Status</th><th>Outcome</th><th>Reason</th></tr></thead>
+    <tbody>{% for l in logs %}<tr class="hover:bg-base-200">
+      <td class="whitespace-nowrap text-xs opacity-60">{{ l.created_at }}</td>
+      <td class="font-mono text-xs whitespace-nowrap">{{ l.method }} {{ l.endpoint }}</td>
+      <td class="tabular-nums">{{ l.status_code }}</td>
+      <td><span class="badge badge-sm {{ {'Accepted': 'badge-soft badge-success', 'Flagged': 'badge-soft badge-warning'}.get(l.outcome, 'badge-soft badge-error') }}">{{ l.outcome }}</span></td>
+      <td class="text-xs max-w-md">{{ l.reason or '' }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% else %}{{ empty('No API calls yet', 'Calls from your store will be listed here, including refused ones.', 'activity') }}{% endif %}
+{% endif %}
+{% endblock %}

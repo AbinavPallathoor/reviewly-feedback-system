@@ -1,0 +1,54 @@
+{% extends "admin/base.html" %}
+{% block title %}Reviewly integration{% endblock %}
+{% block content %}
+<h1>Reviewly integration</h1>
+<div class="grid2">
+  <section class="panel">
+    <h2>Connection</h2>
+    <dl class="kv">
+      <dt>Endpoint</dt><dd class="mono">{{ reviewly_url }}/api/v1</dd>
+      <dt>Public key</dt><dd class="mono">{{ shop.public_key }}</dd>
+      <dt>Secret</dt><dd class="mono">{{ shop.secret[:12] }}••••••••</dd>
+      <dt>Signing</dt><dd>HMAC-SHA256 over timestamp, nonce, method, path and body</dd>
+    </dl>
+    <p class="muted small">Orders are registered with Reviewly at checkout. Customers' reviews are forwarded with a signed request, and Reviewly only accepts them for registered orders.</p>
+  </section>
+  <section class="panel">
+    <h2>Integration checks</h2>
+    <p class="muted small">Each of these should be refused by Reviewly.</p>
+    {% if result %}
+    <div class="notice {{ 'success' if result.passed else 'error' }}"><b>{{ 'Refused' if result.passed else 'Not refused' }}{% if result.status %} · HTTP {{ result.status }}{% endif %}</b> {{ result.label }}<br><small>{{ result.message }}</small></div>
+    {% endif %}
+    <ul class="checks">
+      {% for kind, label in checks.items() %}
+      <li><span>{{ label }}</span><form method="post" action="{{ url_for('admin.check', kind=kind) }}"><button class="btn small">Run</button></form></li>
+      {% endfor %}
+    </ul>
+  </section>
+</div>
+
+<section class="panel flush">
+  <div class="panel-head pad"><h2>API log</h2></div>
+  <table>
+    <thead><tr><th>Time</th><th>Request</th><th>Status</th><th>Message</th></tr></thead>
+    <tbody>{% for c in calls %}<tr>
+      <td class="nowrap muted">{{ c.created_at[5:16] }}</td>
+      <td class="mono nowrap">{{ c.method }} {{ c.path }}</td>
+      <td>{% if 200 <= c.status < 300 %}<span class="pill ok">{{ c.status }}</span>{% else %}<span class="pill bad">{{ c.status or 'n/a' }}</span>{% endif %}</td>
+      <td class="small">{{ '' if c.summary == 'ok' else c.summary }}</td>
+    </tr>{% else %}<tr><td colspan="4" class="muted">No requests yet.</td></tr>{% endfor %}</tbody>
+  </table>
+</section>
+
+<section class="panel flush">
+  <div class="panel-head pad"><h2>Review submissions</h2></div>
+  <table>
+    <thead><tr><th>Order</th><th>Customer</th><th>Result</th></tr></thead>
+    <tbody>{% for s in subs %}<tr>
+      <td class="mono">{{ s.order_ref }} <small>{{ s.sku }}</small></td>
+      <td>{{ s.full_name }}</td>
+      <td>{% if s.http_status == 201 %}<a href="{{ s.receipt_url.split('/r/')[0] }}/verify/{{ s.review_id }}" target="_blank" rel="noopener">Review #{{ s.review_id }} · {{ s.review_status }}</a>{% else %}<span class="pill bad">{{ s.http_status }}</span> {{ s.error }}{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Orders{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <h1>Your orders</h1>
+  {% if rows %}
+  <div class="orders">
+    {% for r in rows %}
+    <div class="order">
+      <img src="{{ url_for('static', filename='img/' ~ r.sku ~ '.jpg') }}" alt="">
+      <div class="order-main">
+        <a href="{{ url_for('product', sku=r.sku) }}" class="order-name">{{ r.name }}</a>
+        <p class="muted">Order {{ r.order_ref }} · {{ r.created_at[:10] }} · {{ money(r.price_cents) }}</p>
+      </div>
+      <div class="order-act">
+        {% if r.review_id %}
+          <span class="muted">{{ 'Reviewed' if r.review_status == 'Approved' else 'Review pending' }}</span>
+          <a href="{{ r.receipt_url }}" target="_blank" rel="noopener">View or edit review</a>
+        {% else %}
+          <a class="btn small" href="{{ url_for('review', ref=r.order_ref, sku=r.sku) }}">Write a review</a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p>You haven't placed any orders yet. <a href="{{ url_for('index') }}">Start shopping</a></p>
+  {% endif %}
+</section>
+{% endblock %}

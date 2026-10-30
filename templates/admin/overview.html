@@ -1,38 +1,53 @@
 {% extends "admin/admin_base.html" %}
-{% from "_macros.html" import stars, empty %}
+{% from "_macros.html" import stars, empty, page_head %}
 {% block title %}Overview{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Overview</h1><p>Platform health at a glance.</p></div></div>
-<div class="grid-stats">
+{{ page_head('Overview', 'Platform health at a glance.') }}
+{% set icons = {'Users': 'users', 'Products': 'package', 'Reviews': 'message-square', 'Avg rating': 'star', 'Pending reports': 'flag'} %}
+{% set links = {'Users': 'admin_users', 'Products': 'admin_catalog', 'Reviews': 'admin_reviews', 'Avg rating': 'admin_reviews', 'Pending reports': 'admin_moderation'} %}
+<div class="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 mb-4">
   {% for k, v in stats.items() %}
-  <div class="card stat reveal {{ 'inv' if k == 'Pending reports' and v }}"><div class="k">{{ k }}</div><div class="v" data-count="{{ v }}">{{ v }}</div></div>
+  {% set inv = k == 'Pending reports' and v %}
+  <a href="{{ url_for(links[k]) }}" class="stats border lift bg-base-100 border-base-300 {{ 'col-span-2 md:col-span-1' if loop.last }}">
+    <div class="stat p-5">
+      <div class="stat-figure opacity-40"><i data-lucide="{{ icons[k] }}" class="size-6"></i></div>
+      <div class="stat-title">{{ k }}</div>
+      <div class="stat-value text-3xl">{{ v }}</div>
+    </div>
+  </a>
   {% endfor %}
 </div>
-<div class="split">
-  <section class="card reveal">
-    <div class="row between"><h4 style="margin:0">Reviews per day</h4><span class="muted" style="font-size:.8rem">last {{ series|length }} days · {{ series|sum }} total</span></div>
-    <svg class="spark" viewBox="0 0 {{ spark_w }} {{ spark_h }}" preserveAspectRatio="none" style="width:100%;height:140px;margin-top:1rem" role="img" aria-label="Reviews per day sparkline">
+<div class="grid gap-4 lg:grid-cols-5 mb-8">
+  <section class="card bg-base-100 border border-base-300 lg:col-span-3"><div class="card-body p-6">
+    <div class="flex items-baseline justify-between"><h2 class="font-semibold">Reviews per day</h2><span class="text-xs opacity-60">last {{ series|length }} days · {{ series|sum }} total</span></div>
+    <svg class="spark w-full h-36 mt-3" viewBox="0 0 {{ spark_w }} {{ spark_h }}" preserveAspectRatio="none" role="img" aria-label="Reviews per day">
       {% for y in [0.25, 0.5, 0.75] %}<line class="grid" x1="0" x2="{{ spark_w }}" y1="{{ spark_h * y }}" y2="{{ spark_h * y }}"/>{% endfor %}
       <polygon class="area" points="0,{{ spark_h }} {{ points }} {{ spark_w }},{{ spark_h }}"/>
       <polyline points="{{ points }}" vector-effect="non-scaling-stroke"/>
     </svg>
-    <div class="row between muted" style="font-size:.75rem"><span>{{ start }}</span><span>peak {{ series|max }}/day</span><span>today</span></div>
-  </section>
-  <section class="card reveal">
-    <h4>Rating histogram <small class="muted">(approved)</small></h4>
+    <div class="flex justify-between text-xs opacity-60 mt-1"><span>{{ start }}</span><span>peak {{ series|max }}/day</span><span>today</span></div>
+  </div></section>
+  <section class="card bg-base-100 border border-base-300 lg:col-span-2"><div class="card-body p-6">
+    <h2 class="font-semibold">Rating histogram <span class="font-normal text-xs opacity-60">approved only</span></h2>
     {% set mx = (dist|map(attribute='count')|max) or 1 %}
-    <svg class="hist" viewBox="0 0 300 150" style="width:100%;height:160px" role="img" aria-label="Rating histogram">
-      {% for d in dist|reverse %}{% set h = 110 * d.count / mx %}{% set x = 15 + loop.index0 * 57 %}
-      <rect class="b" x="{{ x }}" y="{{ 125 - h }}" width="40" height="{{ h }}" rx="4" style="animation-delay: {{ loop.index0 * 70 }}ms"/>
-      <text class="v" x="{{ x + 20 }}" y="{{ 120 - h }}" text-anchor="middle">{{ d.count }}</text>
-      <text x="{{ x + 20 }}" y="143" text-anchor="middle">{{ d.rating }}★</text>{% endfor %}
+    <svg class="hist w-full h-40 mt-3" viewBox="0 0 300 150" role="img" aria-label="Rating histogram">
+      {% for d in dist|reverse %}{% set h = 105 * d.count / mx %}{% set x = 12 + loop.index0 * 57 %}
+      <rect x="{{ x }}" y="{{ 125 - h }}" width="42" height="{{ h }}" rx="5" style="animation-delay: {{ loop.index0 * 70 }}ms"/>
+      <text class="v" x="{{ x + 21 }}" y="{{ 119 - h }}" text-anchor="middle">{{ d.count }}</text>
+      <text x="{{ x + 21 }}" y="144" text-anchor="middle">{{ d.rating }}★</text>{% endfor %}
     </svg>
-  </section>
+  </div></section>
 </div>
-<h3 style="margin-top:2rem" class="reveal">Latest reviews</h3>
+<div class="flex items-baseline justify-between mb-3"><h2 class="text-lg font-bold">Latest reviews</h2><a href="{{ url_for('admin_reviews') }}" class="link link-hover text-sm">View all</a></div>
 {% if latest %}
-<div class="tablewrap reveal"><table><thead><tr><th>#</th><th>Review</th><th>Product</th><th>By</th><th>Rating</th><th>Status</th><th>Date</th></tr></thead><tbody>
-{% for r in latest %}<tr><td>{{ r.review_id }}</td><td>{{ r.title or '—' }}</td><td>{{ r.product_name }}</td><td>{{ r.full_name }}</td><td>{{ stars(r.rating) }}</td><td><span class="pill {{ 'inv' if r.status != 'Approved' }}">{{ r.status }}</span></td><td>{{ r.created_at[:10] }}</td></tr>{% endfor %}
-</tbody></table></div>
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+  <table class="table">
+    <thead><tr><th>#</th><th>Review</th><th>Product</th><th>By</th><th>Rating</th><th>Status</th><th>Date</th></tr></thead>
+    <tbody>{% for r in latest %}<tr class="hover:bg-base-200">
+      <td class="opacity-50">{{ r.review_id }}</td><td class="font-medium">{{ r.title or '—' }}</td><td>{{ r.product_name }}</td><td>{{ r.full_name }}</td>
+      <td>{{ stars(r.rating) }}</td><td><span class="badge badge-sm {{ 'badge-neutral' if r.status != 'Approved' else 'badge-ghost' }}">{{ r.status }}</span></td><td class="whitespace-nowrap opacity-70">{{ r.created_at[:10] }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
 {% else %}{{ empty('No reviews yet') }}{% endif %}
 {% endblock %}

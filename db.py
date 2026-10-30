@@ -1,7 +1,9 @@
 """Database helpers: connection, schema init and demo seed data."""
+import hashlib
 import os
 import random
 import re
+import secrets
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -12,6 +14,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "reviewly.db")
 SCHEMA_PATH = os.path.join(BASE_DIR, "schema.sql")
 CRITERIA = ("Quality", "Delivery", "Value")
+
+# Fixed dev credentials so the example shops (shops/*) can talk to a freshly seeded Reviewly.
+API_CLIENTS = [
+    # (contact name, login email, company, reg no, public key, secret, site)
+    ("Kai Mercer", "kickvault@reviewly.test", "KICKVAULT", "BRN-310552",
+     "pk_test_kickvault", "sk_test_kickvault_7f3a9c2e51d84b60", "http://127.0.0.1:5001"),
+    ("Flora Quince", "fernfig@reviewly.test", "Fern & Fig", "BRN-420913",
+     "pk_test_fernfig", "sk_test_fernfig_b18e4d07a29c6f35", "http://127.0.0.1:5002"),
+]
 
 POSITIVE = set("""good great excellent amazing love loved perfect fast happy recommend solid sturdy
 comfortable beautiful best nice reliable worth easy brilliant fantastic quality smooth quick helpful
@@ -29,10 +40,20 @@ def sentiment(text):
     return 0.0 if pos + neg == 0 else round((pos - neg) / (pos + neg), 2)
 
 
+def sha256(text):
+    return hashlib.sha256(str(text).encode()).hexdigest()
+
+
+def content_string(r):
+    """Must match the string the ledger triggers in schema.sql hash."""
+    return f"{r['review_id']}|{r['user_id']}|{r['product_id']}|{r['rating']}|{r['title'] or ''}|{r['review_text']}|{r['status']}"
+
+
 def connect(path=None):
     conn = sqlite3.connect(path or DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.create_function("sha256", 1, sha256, deterministic=True)
     return conn
 
 
@@ -46,6 +67,44 @@ def close_db(_exc=None):
     db = g.pop("db", None)
     if db is not None:
         db.close()
+
+
+def q(sql, args=(), one=False):
+    cur = get_db().execute(sql, args)
+    return cur.fetchone() if one else cur.fetchall()
+
+
+def new_token():
+    return secrets.token_urlsafe(18)
+
+
+def validate_review(rating, title, text, scores):
+    """Shared rules for reviews written on Reviewly and reviews sent through the API."""
+    problems = []
+    if rating not in range(1, 6):
+        problems.append("choose an overall rating")
+    if any(s not in range(1, 6) for s in scores.values()):
+        problems.append("rate Quality, Delivery and Value")
+    if len(text) < 10:
+        problems.append("write at least 10 characters")
+    if len(title) > 150:
+        problems.append("keep the title under 150 characters")
+    return problems
+
+
+def verify_ledger(conn):
+    """Recompute the whole hash chain. Returns (ok, entries, first_bad_entry, reviews_not_matching)."""
+    prev, bad, latest = "GENESIS", None, {}
+    rows = conn.execute("SELECT * FROM Review_Ledger ORDER BY ledger_id").fetchall()
+    for e in rows:
+        expect = sha256(f"{prev}|{e['content_hash']}|{e['event']}|{e['review_id']}")
+        if bad is None and (e["prev_hash"] != prev or e["entry_hash"] != expect):
+            bad = e["ledger_id"]
+        prev = e["entry_hash"]
+        latest[e["review_id"]] = e["content_hash"]
+    mismatched = [r["review_id"] for r in conn.execute("SELECT * FROM Review").fetchall()
+                  if latest.get(r["review_id"]) != sha256(content_string(r))]
+    return bad is None and not mismatched, len(rows), bad, mismatched
 
 
 def init_db(path=None):
@@ -90,6 +149,14 @@ def seed(conn):
             "INSERT INTO Merchant (user_id, company_name, business_registration_no, contact_email) VALUES (?,?,?,?)",
             (uid, company, reg, email))
         merchants.append(cur.lastrowid)
+
+    for name, email, company, reg, pk, sk, site in API_CLIENTS:
+        uid = add_user(name, email, "Merchant", 30)
+        mid = conn.execute(
+            "INSERT INTO Merchant (user_id, company_name, business_registration_no, contact_email) VALUES (?,?,?,?)",
+            (uid, company, reg, email)).lastrowid
+        conn.execute("INSERT INTO Api_Client (merchant_id, public_key, api_secret, site_url) VALUES (?,?,?,?)",
+                     (mid, pk, sk, site))
 
     customers = [add_user(n, e, "Customer", rng.randint(20, 50)) for n, e in [
         ("Priya Nair", "priya@reviewly.test"), ("Liam Chen", "liam@reviewly.test"),
@@ -157,8 +224,8 @@ def seed(conn):
         title, body = rng.choice(texts[rating])
         created = now - timedelta(days=rng.randint(0, 20), hours=rng.randint(0, 23))
         conn.execute(
-            "INSERT INTO Review (user_id, product_id, rating, title, review_text, sentiment_score, created_at) "
-            "VALUES (?,?,?,?,?,?,?)", (u, p, rating, title, body, sentiment(title + " " + body), ts(created)))
+            "INSERT INTO Review (user_id, product_id, rating, title, review_text, sentiment_score, created_at, receipt_token) "
+            "VALUES (?,?,?,?,?,?,?,?)", (u, p, rating, title, body, sentiment(title + " " + body), ts(created), new_token()))
         rid = conn.execute("SELECT review_id FROM Review WHERE user_id=? AND product_id=?", (u, p)).fetchone()[0]
         review_ids.append(rid)
         for crit in CRITERIA:
@@ -167,9 +234,9 @@ def seed(conn):
                          (rid, crit, score))
 
     conn.execute("INSERT INTO Review_Media (review_id, media_url, media_type) VALUES (?,?,?)",
-                 (review_ids[0], "https://picsum.photos/seed/reviewly1/480/320?grayscale", "image"))
+                 (review_ids[0], "https://picsum.photos/seed/reviewly1/480/320", "image"))
     conn.execute("INSERT INTO Review_Media (review_id, media_url, media_type) VALUES (?,?,?)",
-                 (review_ids[3], "https://picsum.photos/seed/reviewly2/480/320?grayscale", "image"))
+                 (review_ids[3], "https://picsum.photos/seed/reviewly2/480/320", "image"))
 
     for rid in review_ids:
         author = conn.execute("SELECT user_id FROM Review WHERE review_id=?", (rid,)).fetchone()[0]

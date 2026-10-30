@@ -3,31 +3,41 @@
 {% block head %}<script src="https://cdn.jsdelivr.net/npm/force-graph@1.43.5/dist/force-graph.min.js"></script>{% endblock %}
 {% block content %}
 <div x-data="graphView()">
-  <div class="pagehead reveal"><div><h1>Graph view</h1><p>Categories, merchants, products and reviewers. Hover to trace neighbours, click for details, drag / scroll to explore.</p></div></div>
-  <div class="row between reveal" style="margin-bottom:.75rem">
-    <div class="legend">
+  {% from "_macros.html" import page_head %}
+  {{ page_head('Graph view', 'Categories, merchants, products and reviewers. Hover to trace neighbours, click for details, drag or scroll to explore.') }}
+  <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+    <div class="flex flex-wrap gap-2">
       <template x-for="t in types" :key="t.key">
-        <button :class="show[t.key] && 'on'" @click="toggle(t.key)"><span class="swatch" :class="t.key" :style="'background:' + shade(t.key)"></span><span x-text="t.label + ' · ' + (counts[t.key] || 0)"></span></button>
+        <button class="btn btn-sm rounded-full gap-2" :class="show[t.key] ? 'bg-base-100 border-base-content' : 'bg-base-100 opacity-40 line-through'" @click="toggle(t.key)">
+          <span class="swatch" :class="t.key" :style="'color:' + shade(t.key)"></span><span x-text="t.label"></span><span class="badge badge-xs badge-ghost" x-text="counts[t.key] || 0"></span>
+        </button>
       </template>
     </div>
-    <div class="row"><small class="muted">Edge width = review rating</small><button class="ghost sm" @click="fg && fg.zoomToFit(400, 40)">Fit</button></div>
+    <div class="flex items-center gap-3"><span class="text-xs opacity-60">Edge width = review rating</span><button class="btn btn-sm bg-base-100" @click="fg && fg.zoomToFit(400, 40)"><i data-lucide="scan" class="size-4"></i>Fit</button></div>
   </div>
-  <div class="graph-layout">
-    <div id="graph" class="reveal"><div class="empty" x-show="state !== 'ready'" style="position:absolute;inset:1rem;border:0" x-text="state === 'error' ? 'Could not load graph data.' : 'Loading graph…'"></div></div>
-    <aside class="card panel reveal">
+  <div class="grid gap-4 lg:grid-cols-[1fr_300px]">
+    <div id="graph" class="relative h-[460px] lg:h-[640px] rounded-box border border-base-300 bg-base-100 overflow-hidden">
+      <div class="absolute inset-0 grid place-items-center text-sm opacity-60" x-show="state !== 'ready'" x-text="state === 'error' ? 'Could not load graph data.' : 'Loading graph…'"></div>
+    </div>
+    <aside class="card bg-base-100 border border-base-300 self-start"><div class="card-body p-5">
       <template x-if="sel">
         <div>
-          <span class="pill inv" x-text="sel.type"></span>
-          <h3 style="margin:.6rem 0 .2rem" x-text="sel.label"></h3>
-          <p class="muted" style="font-size:.85rem" x-text="sel.degree + ' connections'"></p>
-          <dl><template x-for="[k, v] in Object.entries(sel.stats)" :key="k"><div style="display:contents"><dt x-text="k"></dt><dd x-text="v"></dd></div></template></dl>
-          <h4 style="margin:1.1rem 0 .4rem;font-size:.9rem">Connected to</h4>
-          <div class="row" style="gap:.3rem"><template x-for="n in neighbours(sel)" :key="n.id"><button class="ghost sm" style="font-size:.75rem;padding:.2rem .55rem" @click="focus(n)" x-text="n.label"></button></template></div>
-          <a x-show="sel.url" :href="sel.url" style="display:inline-block;margin-top:1rem;font-size:.9rem">Open product page →</a>
+          <span class="badge badge-neutral capitalize" x-text="sel.type"></span>
+          <h2 class="text-xl font-bold mt-2 leading-tight" x-text="sel.label"></h2>
+          <p class="text-xs opacity-60 mt-1" x-text="sel.degree + ' connections'"></p>
+          <dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm mt-4">
+            <template x-for="[k, v] in Object.entries(sel.stats)" :key="k"><div class="contents"><dt class="opacity-60" x-text="k"></dt><dd class="font-semibold break-words" x-text="v"></dd></div></template>
+          </dl>
+          <p class="text-xs font-semibold uppercase tracking-wide opacity-60 mt-5 mb-2">Connected to</p>
+          <div class="flex flex-wrap gap-1.5"><template x-for="n in neighbours(sel)" :key="n.id"><button class="btn btn-xs" @click="focus(n)" x-text="n.label"></button></template></div>
+          <a x-show="sel.url" :href="sel.url" class="btn btn-neutral btn-sm w-full mt-5">Open product page</a>
         </div>
       </template>
-      <div x-show="!sel" class="empty" style="border:0;padding:1.5rem .5rem"><div class="glyph">⋰</div><b>Select a node</b>Click any node to see its details and key stats.</div>
-    </aside>
+      <div x-show="!sel" class="text-center py-8">
+        <p class="font-semibold">Select a node</p>
+        <p class="text-sm opacity-60 mt-1">Click any node to see its details and key stats.</p>
+      </div>
+    </div></aside>
   </div>
 </div>
 {% endblock %}
@@ -36,7 +46,7 @@
 function graphView() {
   const SH = { light: { category: "#111111", merchant: "#454545", product: "#7a7a7a", user: "#b4b4b4", link: "rgba(0,0,0,.14)", hi: "#000", dim: "rgba(0,0,0,.05)", text: "#111" },
                dark:  { category: "#f2f2f2", merchant: "#bdbdbd", product: "#8a8a8a", user: "#555555", link: "rgba(255,255,255,.16)", hi: "#fff", dim: "rgba(255,255,255,.05)", text: "#eee" } };
-  const pal = () => SH[document.documentElement.dataset.theme === "dark" ? "dark" : "light"];
+  const pal = () => SH.light;
   let hoverNode = null, hiNodes = new Set(), hiLinks = new Set();
   return {
     fg: null, data: null, sel: null, state: "loading", counts: {},

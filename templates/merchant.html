@@ -1,71 +1,121 @@
 {% extends "base.html" %}
-{% from "_macros.html" import stars, bars, empty %}
+{% from "_macros.html" import stars, bars, empty, page_head, product_thumb %}
 {% block title %}Merchant dashboard{% endblock %}
 {% block content %}
-<div x-data="{ open: null, text: '', product: '', review: '' }" @keydown.escape.window="open = null">
-<div class="pagehead reveal"><div><h1>{{ m.company_name }}</h1><p>Reg. {{ m.business_registration_no }} · {{ m.contact_email }}</p></div></div>
+<div x-data="{ rid: null, text: '', product: '', review: '',
+              openReply(id, t, p, r) { Object.assign(this, { rid: id, text: t, product: p, review: r }); this.$refs.replyDlg.showModal() } }">
+{% call page_head(m.company_name, 'Reg. ' ~ m.business_registration_no ~ ' · ' ~ m.contact_email) %}
+  <div class="flex gap-2">
+    <a href="{{ url_for('company', mid=m.merchant_id) }}" class="btn btn-sm"><i data-lucide="building-2" class="size-4"></i>Public profile</a>
+    <a href="{{ url_for('merchant_integration') }}" class="btn btn-sm btn-neutral"><i data-lucide="plug" class="size-4"></i>API &amp; widget</a>
+  </div>
+{% endcall %}
 
-<div class="grid-stats">
-  <div class="card inv stat reveal"><div class="k">Avg rating</div><div class="v" data-count="{{ '%.2f'|format(agg.avg or 0) }}">{{ agg.avg or 0 }}</div></div>
-  <div class="card stat reveal"><div class="k">Reviews</div><div class="v" data-count="{{ agg.n }}">{{ agg.n }}</div></div>
-  <div class="card stat reveal"><div class="k">Products</div><div class="v" data-count="{{ products|length }}">{{ products|length }}</div></div>
-  <div class="card stat reveal"><div class="k">Verified</div><div class="v" data-count="{{ agg.verified or 0 }}">{{ agg.verified or 0 }}</div></div>
-</div>
-
-<div class="split">
-  <section class="card reveal"><h4>Rating distribution</h4>{% if agg.n %}{{ bars(dist) }}{% else %}{{ empty('No ratings yet') }}{% endif %}</section>
-  <section class="card reveal">
-    <h4>Sentiment summary</h4>
-    {% if agg.n %}
-    {% set neu = agg.n - (agg.pos or 0) - (agg.neg or 0) %}
-    <p class="muted" style="font-size:.9rem">Lexicon score averaged over {{ agg.n }} reviews: <strong style="color:var(--ink)">{{ agg.sent }}</strong> ({{ sentiment_label(agg.sent) }})</p>
-    <div class="bars">
-      {% for label, n in [('Positive', agg.pos or 0), ('Neutral', neu), ('Negative', agg.neg or 0)] %}
-      <div class="bar" style="grid-template-columns:4.5rem 1fr 2.4rem"><span>{{ label }}</span><div class="track"><div class="fill" data-w="{{ (100 * n / agg.n)|round|int }}"></div></div><span class="n">{{ n }}</span></div>
-      {% endfor %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+  {% for label, value, icon, inv in [('Avg rating', '%.2f'|format(agg.avg or 0), 'star', True), ('Reviews', agg.n, 'message-square', False), ('Products', products|length, 'package', False), ('Verified', agg.verified or 0, 'badge-check', False)] %}
+  <div class="stats border bg-base-100 border-base-300">
+    <div class="stat">
+      <div class="stat-figure opacity-30"><i data-lucide="{{ icon }}" class="size-7"></i></div>
+      <div class="stat-title">{{ label }}</div>
+      <div class="stat-value text-3xl">{{ value }}</div>
     </div>
-    {% else %}{{ empty('No reviews to analyse') }}{% endif %}
-  </section>
-</div>
-
-<h3 style="margin-top:2rem" class="reveal">Your products</h3>
-{% if products %}
-<div class="tablewrap reveal"><table>
-  <thead><tr><th>Product</th><th>Category</th><th>SKU</th><th>Rating</th><th>Reviews</th><th>Verified</th></tr></thead>
-  <tbody>{% for p in products %}<tr><td><a href="{{ url_for('product_detail', pid=p.product_id) }}">{{ p.product_name }}</a></td><td>{{ p.category_name }}</td><td><code>{{ p.sku }}</code></td><td>{{ stars(p.avg_rating) }} {{ '%.1f'|format(p.avg_rating) }}</td><td>{{ p.total_reviews }}</td><td>{{ p.verified_count }}</td></tr>{% endfor %}</tbody>
-</table></div>
-{% else %}{{ empty('No products yet', 'Ask an admin to add products to your store.') }}{% endif %}
-
-<h3 style="margin-top:2rem" class="reveal">Recent reviews <small class="muted">· unanswered first</small></h3>
-{% if recent %}
-<div class="card reveal">
-  {% for r in recent %}
-  <div class="review">
-    <div class="row between"><div class="row">{{ stars(r.rating) }}<span class="pill">{{ r.product_name }}</span><span class="pill dash">{{ sentiment_label(r.sentiment_score) }}</span>{% if r.is_verified_purchase %}<span class="pill inv">✓ Verified</span>{% endif %}</div><span class="who">{{ r.created_at[:10] }}</span></div>
-    <h4>{{ r.title or 'Untitled review' }}</h4><p>{{ r.review_text }}</p>
-    <div class="row between"><span class="who">by {{ r.full_name }}</span>
-      <button class="sm {{ 'ghost' if r.response_text }}" @click="open = {{ r.review_id }}; text = {{ (r.response_text or '')|tojson|forceescape }}; product = {{ r.product_name|tojson|forceescape }}; review = {{ r.review_text|tojson|forceescape }}">{{ 'Edit reply' if r.response_text else 'Reply' }}</button></div>
-    {% if r.response_text %}<div class="response"><strong>Your reply</strong> <span class="muted">· {{ r.responded_at[:10] }}</span><br>{{ r.response_text }}</div>{% endif %}
   </div>
   {% endfor %}
 </div>
-{% else %}{{ empty('No reviews yet', 'Reviews of your products will appear here.') }}{% endif %}
 
-<template x-teleport="body">
-  <div class="drawer-wrap" x-show="open" x-cloak>
-    <div class="overlay" style="position:absolute" x-show="open" x-transition.opacity.duration.200ms @click="open = null"></div>
-    <form class="drawer" method="post" :action="'/merchant/reply/' + open" x-show="open"
-          x-transition:enter="t-slide-enter" x-transition:enter-start="translate-x" x-transition:leave="t-slide-leave" x-transition:leave-end="translate-x">
-      <div class="row between"><h3 style="margin:0">Public reply</h3><button type="button" class="ghost sm" @click="open = null">✕</button></div>
-      <p class="muted" style="font-size:.85rem;margin-top:.5rem" x-text="product"></p>
-      <blockquote style="font-size:.9rem" x-text="review"></blockquote>
-      <label>Your reply<textarea name="response_text" rows="6" x-model="text" placeholder="Thank the customer or address their concern…"></textarea></label>
-      <small class="err" x-show="text.trim().length > 0 && text.trim().length < 5">Reply must be at least 5 characters.</small>
-      <p class="muted" style="font-size:.8rem">One public reply per review. Saving again updates it.</p>
-      <button type="submit" :disabled="text.trim().length < 5">Publish reply</button>
-    </form>
-  </div>
-</template>
+<div class="grid gap-4 md:grid-cols-2 mb-8">
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-6">
+    <h2 class="font-semibold mb-2">Rating distribution</h2>
+    {% if agg.n %}{{ bars(dist) }}{% else %}{{ empty('No ratings yet', '', 'bar-chart-3') }}{% endif %}
+  </div></section>
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-6">
+    <h2 class="font-semibold">Sentiment summary</h2>
+    {% if agg.n %}
+    {% set neu = agg.n - (agg.pos or 0) - (agg.neg or 0) %}
+    <p class="text-sm opacity-60 mb-2">Average lexicon score <span class="font-bold opacity-100">{{ agg.sent }}</span> ({{ sentiment_label(agg.sent) }}) across {{ agg.n }} reviews.</p>
+    <div class="space-y-2">
+      {% for label, n in [('Positive', agg.pos or 0), ('Neutral', neu), ('Negative', agg.neg or 0)] %}
+      <div class="grid grid-cols-[4.5rem_1fr_2rem] items-center gap-3 text-sm">
+        <span>{{ label }}</span>
+        <div class="h-2 rounded-full bg-base-300 overflow-hidden"><div class="bar-fill h-full rounded-full bg-base-content" data-w="{{ (100 * n / agg.n)|round|int }}"></div></div>
+        <span class="text-right tabular-nums opacity-60">{{ n }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}{{ empty('No reviews to analyse', '', 'smile') }}{% endif %}
+  </div></section>
 </div>
-<style>.translate-x { transform: translateX(100%); }</style>
+
+<h2 class="text-lg font-bold mb-3">Your products</h2>
+{% if products %}
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100 mb-8">
+  <table class="table">
+    <thead><tr><th>Product</th><th>Category</th><th>SKU</th><th>Rating</th><th class="text-right">Reviews</th><th class="text-right">Verified</th></tr></thead>
+    <tbody>
+    {% for p in products %}
+      <tr class="hover:bg-base-200">
+        <td><a href="{{ url_for('product_detail', pid=p.product_id) }}" class="flex items-center gap-3 font-medium link link-hover">{{ product_thumb(p, 'size-10 rounded-lg shrink-0 border border-base-300', 'text-xs') }}<span>{{ p.product_name }}</span></a></td>
+        <td>{{ p.category_name }}</td>
+        <td class="font-mono text-xs">{{ p.sku }}</td>
+        <td class="whitespace-nowrap">{{ stars(p.avg_rating) }} <span class="ml-1 font-semibold">{{ '%.1f'|format(p.avg_rating) }}</span></td>
+        <td class="text-right">{{ p.total_reviews }}</td>
+        <td class="text-right">{{ p.verified_count }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}<div class="mb-8">{{ empty('No products yet', 'Sync your catalog through the API, or ask an admin to add products.', 'package') }}</div>{% endif %}
+
+<div class="flex items-baseline justify-between mb-3"><h2 class="text-lg font-bold">Recent reviews</h2><span class="text-xs opacity-60">Unanswered first</span></div>
+{% if recent %}
+<div class="grid gap-3">
+  {% for r in recent %}
+  <article class="card bg-base-100 border border-base-300"><div class="card-body p-5 gap-2">
+    <div class="flex flex-wrap items-center gap-2">
+      {{ stars(r.rating) }}
+      <span class="badge badge-sm badge-outline">{{ r.product_name }}</span>
+      <span class="badge badge-sm badge-ghost">{{ sentiment_label(r.sentiment_score) }}</span>
+      {% if r.is_verified_purchase %}<span class="badge badge-sm badge-soft badge-success">Verified</span>{% endif %}
+      {% if r.source_client_id %}<span class="badge badge-sm badge-outline border-dashed">via API</span>{% endif %}
+      <span class="ml-auto text-xs opacity-50">{{ r.created_at[:10] }}</span>
+    </div>
+    <h3 class="font-semibold">{{ r.title or 'Untitled review' }}</h3>
+    <p class="text-sm opacity-80">{{ r.review_text }}</p>
+    {% if r.response_text %}
+    <div class="rounded-box bg-base-200 border-l-4 border-base-content p-3 text-sm">
+      <p class="font-semibold">Your reply <span class="font-normal opacity-50 text-xs">· {{ r.responded_at[:10] }}</span></p>
+      <p class="opacity-80 mt-1">{{ r.response_text }}</p>
+    </div>
+    {% endif %}
+    <div class="flex items-center justify-between mt-1">
+      <span class="text-xs opacity-60">by {{ r.full_name }}</span>
+      <button class="btn btn-sm {{ 'btn-ghost border-base-300' if r.response_text else 'btn-neutral' }}"
+              @click="openReply({{ r.review_id }}, {{ (r.response_text or '')|tojson|forceescape }}, {{ r.product_name|tojson|forceescape }}, {{ r.review_text|tojson|forceescape }})">
+        <i data-lucide="{{ 'pencil' if r.response_text else 'reply' }}" class="size-3.5"></i>{{ 'Edit reply' if r.response_text else 'Reply' }}
+      </button>
+    </div>
+  </div></article>
+  {% endfor %}
+</div>
+{% else %}{{ empty('No reviews yet', 'Reviews of your products will appear here.', 'message-square') }}{% endif %}
+
+<dialog class="modal modal-bottom sm:modal-middle" x-ref="replyDlg">
+  <form class="modal-box" method="post" :action="'/merchant/reply/' + rid">
+    <h3 class="text-lg font-bold">Public reply</h3>
+    <p class="text-xs opacity-60 mt-1" x-text="product"></p>
+    <blockquote class="mt-3 rounded-box bg-base-200 p-3 text-sm italic opacity-80" x-text="review"></blockquote>
+    <fieldset class="fieldset mt-2">
+      <legend class="fieldset-legend">Your reply</legend>
+      <textarea class="textarea w-full h-32" name="response_text" x-model="text" placeholder="Thank the customer or address their concern"></textarea>
+      <p class="label text-xs" x-text="text.trim().length < 5 ? '✕ At least 5 characters' : 'One public reply per review. Saving again updates it.'"></p>
+    </fieldset>
+    <div class="modal-action">
+      <button type="button" class="btn btn-ghost" @click="$refs.replyDlg.close()">Cancel</button>
+      <button type="submit" class="btn btn-neutral" :disabled="text.trim().length < 5">Publish reply</button>
+    </div>
+  </form>
+  <form method="dialog" class="modal-backdrop"><button>close</button></form>
+</dialog>
+</div>
 {% endblock %}

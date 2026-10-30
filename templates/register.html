@@ -2,18 +2,25 @@
 {% from "_macros.html" import err %}
 {% block title %}Sign up{% endblock %}
 {% block content %}
-<div class="authbox">
-  <article class="card reveal">
-    <h2 style="margin-bottom:.25rem">Create your account</h2>
-    <p class="muted">Customer accounts can review, vote and report.</p>
-    <form method="post" novalidate>
-      <label>Full name<input name="full_name" value="{{ form.full_name or '' }}" required {% if errors.full_name %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'full_name') }}
-      <label>Email<input type="email" name="email" value="{{ form.email or '' }}" required {% if errors.email %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'email') }}
-      <label>Password<input type="password" name="password" minlength="6" required {% if errors.password %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'password') }}
-      <label>Confirm password<input type="password" name="confirm" required {% if errors.confirm %}aria-invalid="true"{% endif %}></label>{{ err(errors, 'confirm') }}
-      <button type="submit">Sign up</button>
-    </form>
-    <p class="muted" style="font-size:.9rem;margin:0">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
-  </article>
+<div class="max-w-md mx-auto mt-6 sm:mt-12">
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body gap-4 p-6 sm:p-8">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Create your account</h1>
+        <p class="text-sm opacity-60 mt-1">Customer accounts can review, vote and report.</p>
+      </div>
+      <form method="post" novalidate class="space-y-1">
+        {% for name, label, type, ph in [('full_name', 'Full name', 'text', 'Jane Doe'), ('email', 'Email', 'email', 'you@example.com'), ('password', 'Password', 'password', 'At least 6 characters'), ('confirm', 'Confirm password', 'password', 'Repeat password')] %}
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">{{ label }}</legend>
+          <input class="input w-full" type="{{ type }}" name="{{ name }}" placeholder="{{ ph }}" value="{{ form.get(name, '') if type != 'password' else '' }}" required {% if errors.get(name) %}aria-invalid="true"{% endif %}>
+          {{ err(errors, name) }}
+        </fieldset>
+        {% endfor %}
+        <button type="submit" class="btn btn-neutral w-full mt-3">Sign up</button>
+      </form>
+      <p class="text-sm text-center opacity-70">Already have an account? <a href="{{ url_for('login') }}" class="link font-medium">Log in</a></p>
+    </div>
+  </div>
 </div>
 {% endblock %}

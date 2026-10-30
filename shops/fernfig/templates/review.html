@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Review {{ p.name }}{% endblock %}
+{% macro rate(name, label, val, required=false) -%}
+<fieldset class="rate"><legend>{{ label }}</legend>
+  <div class="rate-row">{% for i in range(5, 0, -1) %}<input type="radio" id="{{ name }}{{ i }}" name="{{ name }}" value="{{ i }}" {{ 'checked' if val|string == i|string }} {{ 'required' if required }}><label for="{{ name }}{{ i }}" title="{{ i }} of 5">★</label>{% endfor %}</div>
+</fieldset>
+{%- endmacro %}
+{% block content %}
+<div class="narrow box pad">
+  <div class="review-item"><img src="{{ url_for('static', filename='img/' ~ p.sku ~ '.jpg') }}" alt=""><div><h1>Review {{ p.name }}</h1><p class="muted">Order {{ ref }}</p></div></div>
+  {% if error %}<div class="msg error">We couldn't submit your review: {{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    {{ rate('rating', 'Overall rating', form.get('rating', ''), true) }}
+    <div class="rate-grid">{% for c in ['Quality', 'Delivery', 'Value'] %}{{ rate(c.lower(), c, form.get(c.lower(), '')) }}{% endfor %}</div>
+    <label>Title<input name="title" maxlength="150" value="{{ form.get('title', '') }}"></label>
+    <label>Your review<textarea name="review_text" rows="5" minlength="10" required>{{ form.get('review_text', '') }}</textarea></label>
+    <button class="btn wide">Submit review</button>
+    <p class="muted small">Your review is published through Reviewly, our independent review partner. You'll receive a link to edit it.</p>
+  </form>
+</div>
+{% endblock %}

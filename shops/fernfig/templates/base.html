@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Organic groceries{% endblock %} – Fern &amp; Fig</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Source+Sans+3:wght@400;600;700&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='shop.css') }}">
+</head>
+<body>
+<header class="header">
+  <div class="wrap header-row">
+    <a href="{{ url_for('index') }}" class="logo">Fern &amp; Fig</a>
+    <nav class="acct">
+      {% if g.user %}
+        <span class="hello">Hi, {{ g.user.full_name.split()[0] }}</span>
+        <a href="{{ url_for('orders') }}">My orders</a>
+        <a href="{{ url_for('logout') }}">Sign out</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Sign in</a>
+      {% endif %}
+    </nav>
+  </div>
+  <nav class="subnav"><div class="wrap">
+    <a href="{{ url_for('index') }}" class="{{ 'on' if ep == 'index' and not cat }}">All groceries</a>
+    {% for c in ['Bakery', 'Grocery & Pantry', 'Tea & Coffee'] %}<a href="{{ url_for('index', cat=c) }}" class="{{ 'on' if cat == c }}">{{ c }}</a>{% endfor %}
+  </div></nav>
+</header>
+<div class="strip">Delivered every Thursday · Free delivery on orders over £40</div>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}
+<div class="wrap">{% for kind, m in msgs %}<div class="msg {{ kind }}">{{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<main class="wrap main">
+{% if not_found %}
+  <h1>Sorry, we can't find that page</h1><p><a href="{{ url_for('index') }}">Back to the shop</a></p>
+{% else %}{% block content %}{% endblock %}{% endif %}
+</main>
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div><p class="logo small">Fern &amp; Fig</p><p>Organic groceries from small producers.<br>12 Market Row, Bristol</p></div>
+    <div><b>Customer care</b><p>Delivery information<br>Contact us<br>FAQs</p></div>
+    <div><b>Reviews</b><p>Our reviews are independently collected by <a href="{{ reviewly_url }}" target="_blank" rel="noopener">Reviewly</a>.</p></div>
+  </div>
+</footer>
+{% block scripts %}<script async src="{{ reviewly_url }}/widget.js"></script>{% endblock %}
+</body>
+</html>

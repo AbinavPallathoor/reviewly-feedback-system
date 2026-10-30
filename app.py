@@ -1,4 +1,5 @@
 """Reviewly - Customer Feedback and Review Management System (Flask + sqlite3)."""
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from functools import wraps
@@ -7,11 +8,14 @@ from flask import (Flask, abort, flash, g, jsonify, redirect, render_template, r
                    session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from db import CRITERIA, close_db, get_db, init_db, sentiment
+from api import bp as api_bp
+from db import (CRITERIA, close_db, content_string, get_db, init_db, new_token, q, sentiment, sha256,
+                validate_review, verify_ledger)
 
 app = Flask(__name__)
 app.secret_key = "reviewly-dev-secret"
 app.teardown_appcontext(close_db)
+app.register_blueprint(api_bp)
 
 
 # ------------------------------------------------------------------ helpers
@@ -42,11 +46,6 @@ def role_required(*roles):
 login_required = role_required()
 
 
-def q(sql, args=(), one=False):
-    cur = get_db().execute(sql, args)
-    return cur.fetchone() if one else cur.fetchall()
-
-
 def current_merchant():
     return q("SELECT * FROM Merchant WHERE user_id=?", (g.user["user_id"],), one=True)
 
@@ -65,7 +64,15 @@ def sentiment_label(score):
     return "Positive" if score > 0.1 else "Negative" if score < -0.1 else "Neutral"
 
 
-app.jinja_env.globals.update(sentiment_label=sentiment_label, CRITERIA=CRITERIA,
+def product_img(p):
+    """Local static/img/products/<sku>.jpg, else the image URL the company synced, else None (initials)."""
+    name = f"img/products/{p['sku']}.jpg"
+    if os.path.exists(os.path.join(app.static_folder, name)):
+        return url_for("static", filename=name)
+    return p["image_url"] if "image_url" in p.keys() else None
+
+
+app.jinja_env.globals.update(sentiment_label=sentiment_label, CRITERIA=CRITERIA, product_img=product_img,
                              pending_count=lambda: q("SELECT COUNT(*) FROM Review_Report WHERE report_status='Pending'", one=True)[0])
 
 
@@ -92,7 +99,7 @@ def index():
         return redirect(url_for("admin_overview"))
     if g.user and g.user["role"] == "Merchant":
         return redirect(url_for("merchant_dashboard"))
-    return redirect(url_for("products"))
+    return redirect(url_for("companies"))
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -128,15 +135,23 @@ def register():
         if pw != form.get("confirm", ""):
             errors["confirm"] = "Passwords do not match."
         if not errors:
+            db = get_db()
+            shadow = q("SELECT user_id FROM Users WHERE email=? AND password_hash='!'", (email,), one=True)
             try:
-                db = get_db()
-                cur = db.execute("INSERT INTO Users (full_name, email, password_hash, role) VALUES (?,?,?, 'Customer')",
-                                 (name, email, generate_password_hash(pw)))
+                if shadow:
+                    # Created when a partner shop registered an order: the shopper now claims it.
+                    db.execute("UPDATE Users SET full_name=?, password_hash=? WHERE user_id=?",
+                               (name, generate_password_hash(pw), shadow["user_id"]))
+                    uid = shadow["user_id"]
+                else:
+                    uid = db.execute("INSERT INTO Users (full_name, email, password_hash, role) VALUES (?,?,?, 'Customer')",
+                                     (name, email, generate_password_hash(pw))).lastrowid
                 db.commit()
                 session.clear()
-                session["uid"] = cur.lastrowid
-                flash("Account created. Welcome to Reviewly!", "success")
-                return redirect(url_for("products"))
+                session["uid"] = uid
+                flash("Account claimed. Reviews from partner shops are now under your name." if shadow
+                      else "Account created. Welcome to Reviewly!", "success")
+                return redirect(url_for("companies"))
             except sqlite3.IntegrityError:
                 errors["email"] = "An account with this email already exists."
     return render_template("register.html", errors=errors, form=form)
@@ -151,22 +166,6 @@ def logout():
 
 # ------------------------------------------------------------------ customer
 
-@app.route("/products")
-def products():
-    term, cat = request.args.get("q", "").strip(), request.args.get("cat", type=int)
-    sql, args = "SELECT * FROM v_product_stats WHERE 1=1", []
-    if term:
-        sql += " AND (product_name LIKE ? OR company_name LIKE ? OR sku LIKE ?)"
-        args += [f"%{term}%"] * 3
-    if cat:
-        sql += " AND category_id=?"
-        args.append(cat)
-    rows = q(sql + " ORDER BY avg_rating DESC, total_reviews DESC", args)
-    cats = q("SELECT c.*, (SELECT COUNT(*) FROM Product p WHERE p.category_id=c.category_id) AS n "
-             "FROM Category c ORDER BY category_name")
-    return render_template("products.html", products=rows, categories=cats, term=term, cat=cat)
-
-
 @app.route("/products/<int:pid>")
 def product_detail(pid):
     product = q("SELECT * FROM v_product_stats WHERE product_id=?", (pid,), one=True)
@@ -174,14 +173,16 @@ def product_detail(pid):
         abort(404)
     uid = g.user["user_id"] if g.user else -1
     reviews = q("""
-        SELECT r.*, u.full_name, h.up, h.down, h.score,
+        SELECT r.*, u.full_name, h.up, h.down, h.score, pv.source_name, pv.entry_hash,
                mr.response_text, mr.responded_at, rm.media_url, rm.media_type,
+               (SELECT COUNT(*) FROM Review_Revision rv WHERE rv.review_id=r.review_id) AS revisions,
                (SELECT vote_type FROM Review_Vote v WHERE v.review_id=r.review_id AND v.user_id=?) AS my_vote,
                (SELECT GROUP_CONCAT(criteria_name || ':' || score) FROM Review_Criteria_Rating c
                  WHERE c.review_id=r.review_id) AS criteria
           FROM Review r
           JOIN Users u ON u.user_id=r.user_id
           JOIN v_helpfulness h ON h.review_id=r.review_id
+          JOIN v_review_provenance pv ON pv.review_id=r.review_id
           LEFT JOIN Merchant_Response mr ON mr.review_id=r.review_id
           LEFT JOIN Review_Media rm ON rm.review_id=r.review_id
          WHERE r.product_id=? AND (r.status='Approved' OR r.user_id=?)
@@ -213,13 +214,7 @@ def save_review(pid):
     rating = f.get("rating", type=int)
     title, text, media = f.get("title", "").strip(), f.get("review_text", "").strip(), f.get("media_url", "").strip()
     scores = {c: f.get(c.lower(), type=int) for c in CRITERIA}
-    problems = []
-    if rating not in range(1, 6):
-        problems.append("choose an overall rating")
-    if any(s not in range(1, 6) for s in scores.values()):
-        problems.append("rate Quality, Delivery and Value")
-    if len(text) < 10:
-        problems.append("write at least 10 characters")
+    problems = validate_review(rating, title, text, scores)
     if media and not media.startswith(("http://", "https://")):
         problems.append("media URL must start with http(s)://")
     if problems:
@@ -235,8 +230,8 @@ def save_review(pid):
             db.execute("UPDATE Review SET rating=?, title=?, review_text=?, sentiment_score=? WHERE review_id=?",
                        (rating, title, text, score, rid))
         else:
-            db.execute("INSERT INTO Review (user_id, product_id, rating, title, review_text, sentiment_score) "
-                       "VALUES (?,?,?,?,?,?)", (uid, pid, rating, title, text, score))
+            db.execute("INSERT INTO Review (user_id, product_id, rating, title, review_text, sentiment_score, receipt_token) "
+                       "VALUES (?,?,?,?,?,?,?)", (uid, pid, rating, title, text, score, new_token()))
             # lookup by natural key: the verify trigger may re-insert the row
             rid = q("SELECT review_id FROM Review WHERE user_id=? AND product_id=?", (uid, pid), one=True)[0]
         for c, s in scores.items():
@@ -352,6 +347,36 @@ def merchant_reply(rid):
     return redirect(url_for("merchant_dashboard"))
 
 
+@app.route("/merchant/integration")
+@role_required("Merchant")
+def merchant_integration():
+    m = current_merchant()
+    if not m:
+        abort(403)
+    client = q("SELECT * FROM v_client_activity WHERE merchant_id=?", (m["merchant_id"],), one=True)
+    secret = q("SELECT api_secret FROM Api_Client WHERE merchant_id=?", (m["merchant_id"],), one=True)
+    logs = q("SELECT * FROM Api_Request_Log WHERE client_id=? ORDER BY log_id DESC LIMIT 40",
+             (client["client_id"],)) if client else []
+    sources = q("SELECT pv.source_name, COUNT(*) AS n FROM v_review_provenance pv JOIN Product p ON p.product_id=pv.product_id "
+                "WHERE p.merchant_id=? GROUP BY pv.source_name ORDER BY n DESC", (m["merchant_id"],))
+    return render_template("merchant_integration.html", m=m, client=client, logs=logs, sources=sources,
+                           secret_hint=(secret[0][:12] + "••••" + secret[0][-4:]) if secret else None)
+
+
+@app.route("/merchant/integration/toggle", methods=["POST"])
+@role_required("Merchant")
+def merchant_toggle_key():
+    m = current_merchant()
+    db = get_db()
+    cur = db.execute("UPDATE Api_Client SET is_active = 1 - is_active WHERE merchant_id=?", (m["merchant_id"] if m else -1,))
+    db.commit()
+    if not cur.rowcount:
+        abort(404)
+    active = q("SELECT is_active FROM Api_Client WHERE merchant_id=?", (m["merchant_id"],), one=True)[0]
+    flash("API key resumed." if active else "API key paused. Signed calls will now be refused.", "success")
+    return redirect(url_for("merchant_integration"))
+
+
 # ------------------------------------------------------------------ admin
 
 @app.route("/admin")
@@ -406,10 +431,11 @@ def admin_report_action(report_id, action):
 @role_required("Admin")
 def admin_reviews():
     term, status = request.args.get("q", "").strip(), request.args.get("status", "")
-    sql = ("SELECT r.*, u.full_name, p.product_name, h.score, "
+    sql = ("SELECT r.*, u.full_name, p.product_name, h.score, pv.source_name, "
            "(SELECT COUNT(*) FROM Review_Report x WHERE x.review_id=r.review_id) AS reports "
            "FROM Review r JOIN Users u ON u.user_id=r.user_id JOIN Product p ON p.product_id=r.product_id "
-           "JOIN v_helpfulness h ON h.review_id=r.review_id WHERE 1=1")
+           "JOIN v_helpfulness h ON h.review_id=r.review_id "
+           "JOIN v_review_provenance pv ON pv.review_id=r.review_id WHERE 1=1")
     args = []
     if term:
         sql += " AND (r.title LIKE ? OR r.review_text LIKE ? OR p.product_name LIKE ? OR u.full_name LIKE ?)"
@@ -491,6 +517,22 @@ def admin_add_product():
     return redirect(url_for("admin_catalog"))
 
 
+@app.route("/admin/integrity", methods=["GET", "POST"])
+@role_required("Admin")
+def admin_integrity():
+    result = None
+    if request.method == "POST":
+        ok, entries, bad, mismatched = verify_ledger(get_db())
+        result = {"ok": ok, "entries": entries, "bad": bad, "mismatched": mismatched}
+    return render_template("admin/integrity.html", result=result,
+                           clients=q("SELECT * FROM v_client_activity ORDER BY company_name"),
+                           logs=q("SELECT l.*, m.company_name FROM Api_Request_Log l "
+                                  "LEFT JOIN Api_Client ac ON ac.client_id=l.client_id "
+                                  "LEFT JOIN Merchant m ON m.merchant_id=ac.merchant_id ORDER BY l.log_id DESC LIMIT 60"),
+                           ledger=q("SELECT * FROM Review_Ledger ORDER BY ledger_id DESC LIMIT 12"),
+                           counts=q("SELECT event, COUNT(*) AS n FROM Review_Ledger GROUP BY event"))
+
+
 @app.route("/admin/graph")
 @role_required("Admin")
 def admin_graph():
@@ -535,6 +577,104 @@ def admin_graph_json():
 
 # ------------------------------------------------------------------ public
 
+def review_trail(rid):
+    """Ledger entries for one review, each re-checked against its stored predecessor."""
+    db = get_db()
+    entries = []
+    for e in q("SELECT * FROM Review_Ledger WHERE review_id=? ORDER BY ledger_id", (rid,)):
+        expect = sha256(f"{e['prev_hash']}|{e['content_hash']}|{e['event']}|{e['review_id']}")
+        prev_ok = e["prev_hash"] == "GENESIS" or bool(db.execute(
+            "SELECT 1 FROM Review_Ledger WHERE entry_hash=? AND ledger_id<?", (e["prev_hash"], e["ledger_id"])).fetchone())
+        entries.append({**dict(e), "ok": expect == e["entry_hash"] and prev_ok})
+    return entries
+
+
+def review_page(r, template, **extra):
+    prov = q("SELECT * FROM v_review_provenance WHERE review_id=?", (r["review_id"],), one=True)
+    trail = review_trail(r["review_id"])
+    current = sha256(content_string(r))
+    matches = bool(trail) and trail[-1]["content_hash"] == current
+    return render_template(template, r=r, prov=prov, trail=trail, current_hash=current,
+                           intact=matches and all(e["ok"] for e in trail),
+                           revisions=q("SELECT * FROM Review_Revision WHERE review_id=? ORDER BY revision_id DESC",
+                                       (r["review_id"],)), **extra)
+
+
+@app.route("/r/<token>", methods=["GET", "POST"])
+def receipt(token):
+    r = q("SELECT r.*, u.full_name, u.email FROM Review r JOIN Users u ON u.user_id=r.user_id WHERE receipt_token=?",
+          (token,), one=True)
+    if not r:
+        abort(404)
+    if request.method == "POST":
+        f = request.form
+        rating, title, text = f.get("rating", type=int), f.get("title", "").strip(), f.get("review_text", "").strip()
+        problems = validate_review(rating, title, text, {})
+        if problems:
+            flash("Please " + ", ".join(problems) + ".", "error")
+        elif (rating, title or None, text) == (r["rating"], r["title"], r["review_text"]):
+            flash("Nothing changed.", "error")
+        else:
+            db = get_db()
+            db.execute("UPDATE Review SET rating=?, title=?, review_text=?, sentiment_score=? WHERE review_id=?",
+                       (rating, title or None, text, sentiment(f"{title} {text}"), r["review_id"]))
+            db.commit()
+            flash("Review updated. The change is recorded in the public ledger.", "success")
+        return redirect(url_for("receipt", token=token))
+    return review_page(r, "receipt.html")
+
+
+@app.route("/verify/<int:rid>")
+def verify_review(rid):
+    r = q("SELECT r.*, u.full_name FROM Review r JOIN Users u ON u.user_id=r.user_id WHERE r.review_id=?", (rid,), one=True)
+    if not r:
+        abort(404)
+    return review_page(r, "verify.html")
+
+
+@app.route("/companies")
+def companies():
+    term = request.args.get("q", "").strip()
+    like = f"%{term}%"
+    rows = q("""
+        SELECT m.*, ac.public_key IS NOT NULL AS integrated, ac.site_url,
+               (SELECT COUNT(*) FROM Product p WHERE p.merchant_id=m.merchant_id) AS products,
+               (SELECT COUNT(*) FROM Review r JOIN Product p ON p.product_id=r.product_id
+                 WHERE p.merchant_id=m.merchant_id AND r.status='Approved') AS reviews,
+               (SELECT ROUND(AVG(r.rating),2) FROM Review r JOIN Product p ON p.product_id=r.product_id
+                 WHERE p.merchant_id=m.merchant_id AND r.status='Approved') AS avg
+          FROM Merchant m LEFT JOIN Api_Client ac ON ac.merchant_id=m.merchant_id
+         WHERE ?='' OR m.company_name LIKE ?
+            OR EXISTS (SELECT 1 FROM Product p WHERE p.merchant_id=m.merchant_id AND p.product_name LIKE ?)
+         ORDER BY integrated DESC, m.company_name""", (term, like, like))
+    matches = q("SELECT * FROM v_product_stats WHERE product_name LIKE ? OR sku LIKE ? ORDER BY total_reviews DESC LIMIT 8",
+                (like, like)) if term else []
+    totals = q("SELECT (SELECT COUNT(*) FROM Review WHERE status='Approved') AS reviews, "
+               "(SELECT COUNT(*) FROM Review WHERE status='Approved' AND is_verified_purchase=1) AS verified, "
+               "(SELECT COUNT(*) FROM Merchant) AS companies", one=True)
+    return render_template("companies.html", companies=rows, matches=matches, term=term, totals=totals)
+
+
+@app.route("/companies/<int:mid>")
+def company(mid):
+    m = q("SELECT m.*, ac.site_url, ac.public_key FROM Merchant m LEFT JOIN Api_Client ac ON ac.merchant_id=m.merchant_id "
+          "WHERE m.merchant_id=?", (mid,), one=True)
+    if not m:
+        abort(404)
+    scope = "WHERE product_id IN (SELECT product_id FROM Product WHERE merchant_id=?)"
+    agg = q("SELECT COUNT(*) AS n, ROUND(AVG(r.rating),2) AS avg, SUM(r.is_verified_purchase) AS verified, "
+            "(SELECT COUNT(*) FROM Merchant_Response mr WHERE mr.merchant_id=?) AS replies "
+            "FROM Review r JOIN Product p ON p.product_id=r.product_id WHERE p.merchant_id=? AND r.status='Approved'",
+            (mid, mid), one=True)
+    recent = q("""
+        SELECT r.*, u.full_name, p.product_name, p.product_id, pv.source_name
+          FROM Review r JOIN Product p ON p.product_id=r.product_id JOIN Users u ON u.user_id=r.user_id
+          JOIN v_review_provenance pv ON pv.review_id=r.review_id
+         WHERE p.merchant_id=? AND r.status='Approved' ORDER BY r.created_at DESC LIMIT 8""", (mid,))
+    return render_template("company.html", m=m, agg=agg, recent=recent, dist=distribution(scope, (mid,)),
+                           products=q("SELECT * FROM v_product_stats WHERE merchant_id=? ORDER BY avg_rating DESC", (mid,)))
+
+
 @app.route("/schema")
 def schema():
     objs = q("SELECT type, name, tbl_name, sql FROM sqlite_master WHERE sql IS NOT NULL "
@@ -546,4 +686,4 @@ def schema():
 init_db()
 
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5050)

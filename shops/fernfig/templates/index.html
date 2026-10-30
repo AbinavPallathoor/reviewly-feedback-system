@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+{% if not cat %}
+<section class="banner">
+  <div>
+    <h1>Fresh from small producers</h1>
+    <p>Bread baked on the morning of delivery, raw honey from the Cotswolds and single-estate olive oil.</p>
+  </div>
+  <img src="{{ url_for('static', filename='img/FF-SDO-02.jpg') }}" alt="Country sourdough loaf">
+</section>
+{% endif %}
+<div class="list-head"><h2>{{ cat or 'All groceries' }}</h2><span class="muted">{{ products|length }} products</span></div>
+<div class="grid">
+  {% for p in products %}
+  <div class="card">
+    <a href="{{ url_for('product', sku=p.sku) }}" class="card-img"><img src="{{ url_for('static', filename='img/' ~ p.sku ~ '.jpg') }}" alt="{{ p.name }}" loading="lazy"></a>
+    <div class="card-body">
+      <a href="{{ url_for('product', sku=p.sku) }}" class="card-name">{{ p.name }}</a>
+      <span data-reviewly-stars="{{ p.sku }}" data-reviewly-key="{{ shop.public_key }}" data-star="#d9930d"></span>
+      <div class="card-foot">
+        <span class="price">{{ money(p.price_cents) }}</span>
+        <a href="{{ url_for('product', sku=p.sku) }}" class="btn small">View</a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}My orders{% endblock %}
+{% block content %}
+<h1>My orders</h1>
+{% if rows %}
+<div class="box">
+  <table class="table">
+    <thead><tr><th>Product</th><th>Order</th><th>Date</th><th>Price</th><th></th></tr></thead>
+    <tbody>{% for r in rows %}<tr>
+      <td><a href="{{ url_for('product', sku=r.sku) }}" class="row-prod"><img src="{{ url_for('static', filename='img/' ~ r.sku ~ '.jpg') }}" alt="">{{ r.name }}</a></td>
+      <td>{{ r.order_ref }}</td>
+      <td>{{ r.created_at[:10] }}</td>
+      <td>{{ money(r.price_cents) }}</td>
+      <td class="r">{% if r.review_id %}<a href="{{ r.receipt_url }}" target="_blank" rel="noopener">{{ 'Your review' if r.review_status == 'Approved' else 'Review pending' }}</a>{% else %}<a class="btn small" href="{{ url_for('review', ref=r.order_ref, sku=r.sku) }}">Review</a>{% endif %}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% else %}
+<p>You have no orders yet. <a href="{{ url_for('index') }}">Start shopping</a></p>
+{% endif %}
+{% endblock %}

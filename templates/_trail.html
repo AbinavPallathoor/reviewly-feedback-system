@@ -1,0 +1,55 @@
+{# Provenance + ledger trail, shared by receipt.html and verify.html. Expects r, prov, trail, intact, current_hash, revisions. #}
+{% from "_macros.html" import stars %}
+<section class="card border {{ 'bg-success/8 border-success/30' if intact else 'bg-error/8 border-error/40' }}">
+  <div class="card-body p-5 sm:flex-row sm:items-center gap-4">
+    <i data-lucide="{{ 'shield-check' if intact else 'shield-alert' }}" class="size-8 shrink-0 {{ 'text-success' if intact else 'text-error' }}"></i>
+    <div class="min-w-0">
+      <p class="font-semibold">{{ 'Unchanged since it was recorded' if intact else 'Integrity check failed' }}</p>
+      <p class="text-sm opacity-80">{% if intact %}The text below matches the latest entry in Reviewly's review ledger, and the ledger chain is intact. Any edit is listed in the history.{% else %}The stored review no longer matches its ledger entry. Reviewly admins have been shown this on the integrity page.{% endif %}</p>
+      <p class="font-mono text-xs mt-2 break-all opacity-70">sha256 {{ current_hash }}</p>
+    </div>
+  </div>
+</section>
+
+<div class="grid gap-4 md:grid-cols-2 mt-4">
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-5">
+    <h2 class="font-semibold flex items-center gap-2"><i data-lucide="route" class="size-4"></i>Provenance</h2>
+    <dl class="grid grid-cols-[8rem_1fr] gap-y-2 text-sm mt-1">
+      <dt class="opacity-60">Product</dt><dd><a class="link" href="{{ url_for('product_detail', pid=prov.product_id) }}">{{ prov.product_name }}</a> <span class="font-mono text-xs opacity-60">{{ prov.sku }}</span></dd>
+      <dt class="opacity-60">Sold by</dt><dd>{{ prov.seller_name }}</dd>
+      <dt class="opacity-60">Received from</dt><dd>{% if prov.source_client_id %}<span class="badge badge-sm badge-outline gap-1"><i data-lucide="plug" class="size-3"></i>{{ prov.source_name }} API</span> <span class="text-xs opacity-60">{{ prov.site_url }}</span>{% else %}Written directly on Reviewly{% endif %}</dd>
+      <dt class="opacity-60">Purchase</dt><dd>{% if r.is_verified_purchase %}<span class="badge badge-sm badge-soft badge-success gap-1"><i data-lucide="badge-check" class="size-3"></i>Verified</span> <span class="font-mono text-xs">{{ prov.order_reference }}</span>{% else %}No matching order on record{% endif %}</dd>
+      <dt class="opacity-60">Status</dt><dd>{{ r.status }}{% if r.flag_reason %} <span class="text-xs opacity-70">· held for review: {{ r.flag_reason }}</span>{% endif %}</dd>
+      <dt class="opacity-60">Received</dt><dd>{{ r.created_at }} UTC</dd>
+    </dl>
+  </div></section>
+
+  <section class="card bg-base-100 border border-base-300"><div class="card-body p-5">
+    <h2 class="font-semibold flex items-center gap-2"><i data-lucide="link" class="size-4"></i>Ledger entries <span class="badge badge-sm badge-ghost">{{ trail|length }}</span></h2>
+    <ol class="text-sm mt-1 space-y-2">
+      {% for e in trail %}
+      <li class="flex gap-3 items-start">
+        <span class="grid place-items-center size-6 rounded-full shrink-0 text-xs font-bold {{ 'bg-success/15 text-success' if e.ok else 'bg-error/15 text-error' }}">{{ '✓' if e.ok else '!' }}</span>
+        <div class="min-w-0">
+          <p><span class="font-semibold capitalize">{{ e.event }}</span> <span class="text-xs opacity-60">#{{ e.ledger_id }} · {{ e.created_at }}</span></p>
+          <p class="font-mono text-[11px] opacity-60 break-all">prev {{ e.prev_hash[:16] }}… → {{ e.entry_hash[:16] }}…</p>
+        </div>
+      </li>
+      {% endfor %}
+    </ol>
+  </div></section>
+</div>
+
+{% if revisions %}
+<section class="card bg-base-100 border border-base-300 mt-4"><div class="card-body p-5">
+  <h2 class="font-semibold flex items-center gap-2"><i data-lucide="history" class="size-4"></i>Earlier versions</h2>
+  <p class="text-xs opacity-60">Only the reviewer can edit, from their private receipt link. Every earlier version is kept.</p>
+  {% for v in revisions %}
+  <div class="border-t border-base-300 pt-3 mt-2">
+    <div class="flex items-center gap-2">{{ stars(v.rating) }}<span class="text-xs opacity-50">replaced {{ v.revised_at }}</span></div>
+    <p class="font-semibold text-sm mt-1 line-through decoration-1 opacity-70">{{ v.title or 'Untitled review' }}</p>
+    <p class="text-sm opacity-60 line-through decoration-1">{{ v.review_text }}</p>
+  </div>
+  {% endfor %}
+</div></section>
+{% endif %}

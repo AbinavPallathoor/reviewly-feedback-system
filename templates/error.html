@@ -2,6 +2,11 @@
 {% from "_macros.html" import empty %}
 {% block title %}{{ code }}{% endblock %}
 {% block content %}
-<div class="authbox reveal">{{ empty(code ~ ' — ' ~ message, '', '∅') }}
-<p style="text-align:center;margin-top:1rem"><a href="{{ url_for('index') }}">Back to Reviewly</a></p></div>
+<div class="max-w-md mx-auto mt-12">
+  <div class="card bg-base-100 border border-base-300"><div class="card-body items-center text-center">
+    <p class="text-5xl font-semibold">{{ code }}</p>
+    <p class="opacity-70">{{ message }}</p>
+    <a href="{{ url_for('index') }}" class="btn btn-neutral btn-sm mt-2">Back to Reviewly</a>
+  </div></div>
+</div>
 {% endblock %}

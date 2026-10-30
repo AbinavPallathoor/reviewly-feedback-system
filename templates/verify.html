@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, page_head %}
+{% block title %}Verify review #{{ r.review_id }}{% endblock %}
+{% block content %}
+<div class="max-w-3xl mx-auto">
+{{ page_head('Review #' ~ r.review_id, 'Public verification record issued by Reviewly') }}
+<article class="card bg-base-100 border border-base-300 mb-4"><div class="card-body p-5">
+  <div class="flex items-center gap-2">{{ stars(r.rating, 'sm') }}<span class="text-sm opacity-60">{{ r.full_name.split()[0] }} {{ r.full_name.split()[-1][:1] }}.</span></div>
+  <h2 class="font-semibold text-lg">{{ r.title or 'Untitled review' }}</h2>
+  <p class="text-sm opacity-80 leading-relaxed">{{ r.review_text }}</p>
+</div></article>
+{% include "_trail.html" %}
+</div>
+{% endblock %}

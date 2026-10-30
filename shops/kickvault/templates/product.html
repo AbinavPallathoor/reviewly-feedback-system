@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}{{ p.name }}{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <p class="crumbs"><a href="{{ url_for('index') }}">Shop</a> / <a href="{{ url_for('index', cat=p.category) }}">{{ p.category }}</a> / {{ p.name }}</p>
+  <div class="pdp">
+    <div class="pdp-img"><img src="{{ url_for('static', filename='img/' ~ p.sku ~ '.jpg') }}" alt="{{ p.name }}"></div>
+    <div class="pdp-info">
+      <h1>{{ p.name }}</h1>
+      <span data-reviewly-stars="{{ p.sku }}" data-reviewly-key="{{ shop.public_key }}" data-star="#111"></span>
+      <p class="pdp-price">{{ money(p.price_cents) }}</p>
+      {% if p.category == 'Footwear' %}
+      <p class="label">Size (US)</p>
+      <div class="sizes">{% for s in ['7', '8', '9', '10', '11', '12'] %}<label><input type="radio" name="size" {{ 'checked' if s == '9' }}><span>{{ s }}</span></label>{% endfor %}</div>
+      {% endif %}
+      {% if g.user %}
+      <form method="post" action="{{ url_for('buy', sku=p.sku) }}"><button class="btn wide">Buy now</button></form>
+      {% else %}
+      <a class="btn wide" href="{{ url_for('login', next=request.path) }}">Sign in to buy</a>
+      {% endif %}
+      {% if owned %}
+      <p class="owned">{% if owned.reviewed %}You reviewed this item.{% else %}You bought this in order {{ owned.order_ref }}. <a href="{{ url_for('review', ref=owned.order_ref, sku=p.sku) }}">Write a review</a>{% endif %}</p>
+      {% endif %}
+      <ul class="perks"><li>Free shipping over $100</li><li>Free 30-day returns</li><li>SKU {{ p.sku }}</li></ul>
+      <h3>Details</h3>
+      <p>{{ p.blurb }}</p>
+    </div>
+  </div>
+
+  <section class="reviews" id="reviews">
+    <h2>Reviews</h2>
+    <div data-reviewly-sku="{{ p.sku }}" data-reviewly-key="{{ shop.public_key }}"
+         {% for k, v in shop.widget.items() %}data-{{ k }}="{{ v }}" {% endfor %}></div>
+  </section>
+
+  <section>
+    <h2>You may also like</h2>
+    <div class="grid">
+      {% for m in more %}
+      <a href="{{ url_for('product', sku=m.sku) }}" class="tile">
+        <div class="tile-img"><img src="{{ url_for('static', filename='img/' ~ m.sku ~ '.jpg') }}" alt="{{ m.name }}" loading="lazy"></div>
+        <p class="tile-name">{{ m.name }}</p><p class="tile-price">{{ money(m.price_cents) }}</p>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+</section>
+{% endblock %}

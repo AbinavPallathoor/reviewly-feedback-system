@@ -2,21 +2,33 @@
 {% from "_macros.html" import err %}
 {% block title %}Log in{% endblock %}
 {% block content %}
-<div class="authbox">
-  <article class="card reveal">
-    <h2 style="margin-bottom:.25rem">Welcome back</h2>
-    <p class="muted">Log in to write reviews, vote and manage feedback.</p>
-    <form method="post" novalidate>
-      <label>Email
-        <input type="email" name="email" value="{{ request.form.email or '' }}" autocomplete="email" required {% if errors.email %}aria-invalid="true"{% endif %}>
-      </label>{{ err(errors, 'email') }}
-      <label>Password
-        <input type="password" name="password" autocomplete="current-password" required {% if errors.password %}aria-invalid="true"{% endif %}>
-      </label>{{ err(errors, 'password') }}
-      <button type="submit">Log in</button>
-    </form>
-    <p class="muted" style="font-size:.9rem;margin:0">New here? <a href="{{ url_for('register') }}">Create an account</a></p>
-    <div class="cheat"><strong>Demo logins</strong> (password: <code>password</code>): admin@reviewly.test · northwind@reviewly.test · hearth@reviewly.test · priya@reviewly.test</div>
-  </article>
+<div class="max-w-md mx-auto mt-6 sm:mt-12">
+  <div class="card bg-base-100 border border-base-300 shadow-sm">
+    <div class="card-body gap-4 p-6 sm:p-8">
+      <div>
+        <h1 class="text-2xl font-bold tracking-tight">Welcome back</h1>
+        <p class="text-sm opacity-60 mt-1">Log in to write reviews, vote and manage feedback.</p>
+      </div>
+      <form method="post" novalidate class="space-y-3">
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Email</legend>
+          <label class="input w-full"><i data-lucide="mail" class="size-4 opacity-50"></i>
+            <input type="email" name="email" value="{{ request.form.email or '' }}" autocomplete="email" required placeholder="you@example.com" {% if errors.email %}aria-invalid="true"{% endif %}></label>
+          {{ err(errors, 'email') }}
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend class="fieldset-legend">Password</legend>
+          <label class="input w-full"><i data-lucide="lock" class="size-4 opacity-50"></i>
+            <input type="password" name="password" autocomplete="current-password" required placeholder="••••••••" {% if errors.password %}aria-invalid="true"{% endif %}></label>
+          {{ err(errors, 'password') }}
+        </fieldset>
+        <button type="submit" class="btn btn-neutral w-full mt-2">Log in</button>
+      </form>
+      <p class="text-sm text-center opacity-70">New here? <a href="{{ url_for('register') }}" class="link font-medium">Create an account</a></p>
+      <div class="rounded-box bg-base-200 border border-dashed border-base-300 p-3 text-xs leading-relaxed">
+        <span class="font-semibold">Demo logins</span> (password <code class="font-mono font-semibold">password</code>): admin@reviewly.test · northwind@reviewly.test · hearth@reviewly.test · priya@reviewly.test
+      </div>
+    </div>
+  </div>
 </div>
 {% endblock %}

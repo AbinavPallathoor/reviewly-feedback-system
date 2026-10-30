@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Sign in{% endblock %}
+{% block content %}
+<section class="wrap page narrow">
+  <h1>Sign in</h1>
+  {% if error %}<div class="msg error">{{ error }}</div>{% endif %}
+  <form method="post" class="form">
+    <label>Email<input name="email" id="email" type="email" required autocomplete="username"></label>
+    <label>Password<input name="password" id="pw" type="password" required autocomplete="current-password"></label>
+    <button class="btn wide">Sign in</button>
+  </form>
+  <details class="demo">
+    <summary>Demo accounts</summary>
+    <p class="muted">Password for all: <code>password</code></p>
+    <ul>{% for d in demo %}<li><a href="#" onclick="email.value='{{ d.email }}'; pw.value='password'; return false">{{ d.full_name }}</a> <span class="muted">{{ d.email }}</span></li>{% endfor %}</ul>
+  </details>
+</section>
+{% endblock %}

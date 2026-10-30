@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% from "_macros.html" import stars, product_thumb %}
+{% block title %}Companies{% endblock %}
+{% block content %}
+<section class="mb-8">
+  <h1 class="text-2xl font-semibold">Find a company</h1>
+  <p class="text-sm opacity-70 mt-1">{{ totals.reviews }} reviews from {{ totals.companies }} companies · {{ totals.verified }} tied to a verified purchase</p>
+  <form method="get" class="mt-4 flex gap-2 max-w-xl">
+    <label class="input flex-1"><i data-lucide="search" class="size-4 opacity-50"></i><input type="search" name="q" value="{{ term }}" placeholder="Company or product name"></label>
+    <button class="btn btn-primary">Search</button>
+  </form>
+</section>
+
+{% if matches %}
+<section class="mb-8">
+  <h2 class="font-semibold mb-3">Products matching “{{ term }}”</h2>
+  <div class="bg-base-100 border border-base-300 rounded-box divide-y divide-base-300">
+    {% for p in matches %}
+    <a href="{{ url_for('product_detail', pid=p.product_id) }}" class="flex items-center gap-3 px-4 py-3 hover:bg-base-200">
+      {{ product_thumb(p, 'size-10 rounded shrink-0 border border-base-300', 'text-xs') }}
+      <div class="min-w-0 flex-1"><p class="text-sm font-medium truncate">{{ p.product_name }}</p><p class="text-xs opacity-60">{{ p.company_name }}</p></div>
+      <span class="text-sm whitespace-nowrap">{{ stars(p.avg_rating) }} {{ '%.1f'|format(p.avg_rating) }} <span class="opacity-60">({{ p.total_reviews }})</span></span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<h2 class="font-semibold mb-3">{{ 'Companies' if not term else 'Companies matching “' ~ term ~ '”' }}</h2>
+{% if companies %}
+<div class="bg-base-100 border border-base-300 rounded-box divide-y divide-base-300">
+  {% for c in companies %}
+  <a href="{{ url_for('company', mid=c.merchant_id) }}" class="flex flex-wrap sm:flex-nowrap items-center gap-4 px-4 py-4 hover:bg-base-200">
+    <span class="grid place-items-center size-11 rounded border border-base-300 bg-base-200 font-semibold text-sm shrink-0">{{ c.company_name[:2]|upper }}</span>
+    <div class="min-w-0 flex-1">
+      <p class="font-medium">{{ c.company_name }}</p>
+      <p class="text-xs opacity-60">{{ c.site_url.replace('http://', '') if c.site_url else 'Sells on Reviewly' }} · {{ c.products }} products</p>
+    </div>
+    {% if c.integrated %}<span class="badge badge-sm badge-outline text-primary border-primary/40 hidden sm:inline-flex">Verified integration</span>{% endif %}
+    <div class="text-right w-36 shrink-0">
+      <div>{{ stars(c.avg or 0) }} <span class="font-semibold text-sm">{{ '%.1f'|format(c.avg or 0) }}</span></div>
+      <p class="text-xs opacity-60">{{ c.reviews }} reviews</p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<p class="text-sm opacity-70">No companies found.</p>
+{% endif %}
+{% endblock %}

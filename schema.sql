@@ -21,6 +21,39 @@ CREATE TABLE Merchant (
     contact_email             VARCHAR(150) NOT NULL
 );
 
+-- A company that sends reviews to Reviewly through the signed API.
+-- (In production api_secret would be stored encrypted, never in plain text.)
+CREATE TABLE Api_Client (
+    client_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    merchant_id   INTEGER NOT NULL UNIQUE REFERENCES Merchant(merchant_id) ON DELETE CASCADE,
+    public_key    VARCHAR(64)  NOT NULL UNIQUE,
+    api_secret    VARCHAR(128) NOT NULL,
+    site_url      VARCHAR(200) NOT NULL,
+    is_active     INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_used_at  TIMESTAMP
+);
+
+-- Replay protection: a signed request's nonce can be used once per client.
+CREATE TABLE Api_Nonce (
+    client_id  INTEGER NOT NULL REFERENCES Api_Client(client_id) ON DELETE CASCADE,
+    nonce      VARCHAR(64) NOT NULL,
+    used_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (client_id, nonce)
+);
+
+-- Every API call, accepted or not. client_id is NULL when the key was unknown.
+CREATE TABLE Api_Request_Log (
+    log_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    client_id    INTEGER REFERENCES Api_Client(client_id) ON DELETE SET NULL,
+    method       VARCHAR(8)   NOT NULL,
+    endpoint     VARCHAR(200) NOT NULL,
+    status_code  INTEGER      NOT NULL,
+    outcome      VARCHAR(10)  NOT NULL CHECK (outcome IN ('Accepted', 'Rejected', 'Flagged')),
+    reason       TEXT,
+    created_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE TABLE Category (
     category_id    INTEGER PRIMARY KEY AUTOINCREMENT,
     category_name  VARCHAR(80) NOT NULL UNIQUE,
@@ -33,6 +66,7 @@ CREATE TABLE Product (
     category_id    INTEGER NOT NULL REFERENCES Category(category_id) ON DELETE RESTRICT,
     product_name   VARCHAR(150) NOT NULL,
     sku            VARCHAR(50)  NOT NULL UNIQUE,
+    image_url      VARCHAR(500),
     avg_rating     DECIMAL(3,2) NOT NULL DEFAULT 0,
     total_reviews  INTEGER      NOT NULL DEFAULT 0 CHECK (total_reviews >= 0)
 );
@@ -42,7 +76,8 @@ CREATE TABLE Transactions (
     user_id          INTEGER NOT NULL REFERENCES Users(user_id) ON DELETE CASCADE,
     product_id       INTEGER NOT NULL REFERENCES Product(product_id) ON DELETE CASCADE,
     purchase_date    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    order_reference  VARCHAR(40) NOT NULL UNIQUE
+    order_reference  VARCHAR(40) NOT NULL UNIQUE,
+    source_client_id INTEGER REFERENCES Api_Client(client_id) ON DELETE SET NULL
 );
 
 CREATE TABLE Review (
@@ -58,6 +93,9 @@ CREATE TABLE Review (
     status                VARCHAR(20) NOT NULL DEFAULT 'Approved'
                           CHECK (status IN ('Pending', 'Approved', 'Rejected')),
     created_at            TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source_client_id      INTEGER REFERENCES Api_Client(client_id) ON DELETE SET NULL,
+    receipt_token         VARCHAR(64) UNIQUE,
+    flag_reason           TEXT,
     UNIQUE (user_id, product_id)
 );
 
@@ -105,9 +143,33 @@ CREATE TABLE Review_Report (
     UNIQUE (review_id, reporter_user_id)
 );
 
+-- Append-only hash chain over every review event. review_id is deliberately not a
+-- foreign key: the ledger must outlive the row it describes.
+CREATE TABLE Review_Ledger (
+    ledger_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    review_id     INTEGER NOT NULL,
+    event         VARCHAR(10) NOT NULL CHECK (event IN ('created', 'edited', 'status')),
+    content_hash  CHAR(64) NOT NULL,
+    prev_hash     VARCHAR(64) NOT NULL,
+    entry_hash    CHAR(64) NOT NULL UNIQUE,
+    created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Edit history: the previous version of a review, written by a trigger.
+CREATE TABLE Review_Revision (
+    revision_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+    review_id    INTEGER NOT NULL REFERENCES Review(review_id) ON DELETE CASCADE,
+    rating       INTEGER NOT NULL,
+    title        VARCHAR(150),
+    review_text  TEXT NOT NULL,
+    revised_at   TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
 CREATE INDEX idx_review_product ON Review(product_id, status);
 CREATE INDEX idx_txn_user_product ON Transactions(user_id, product_id);
 CREATE INDEX idx_report_review ON Review_Report(review_id, report_status);
+CREATE INDEX idx_ledger_review ON Review_Ledger(review_id);
+CREATE INDEX idx_log_client ON Api_Request_Log(client_id, created_at);
 
 -- ============================== TRIGGERS ==============================
 
@@ -122,13 +184,15 @@ WHEN NEW.transaction_id IS NULL
              WHERE t.user_id = NEW.user_id AND t.product_id = NEW.product_id)
 BEGIN
     INSERT INTO Review (user_id, product_id, transaction_id, rating, title, review_text,
-                        is_verified_purchase, sentiment_score, status, created_at)
+                        is_verified_purchase, sentiment_score, status, created_at,
+                        source_client_id, receipt_token, flag_reason)
     VALUES (NEW.user_id, NEW.product_id,
             (SELECT t.transaction_id FROM Transactions t
               WHERE t.user_id = NEW.user_id AND t.product_id = NEW.product_id
               ORDER BY t.purchase_date LIMIT 1),
             NEW.rating, NEW.title, NEW.review_text, 1, NEW.sentiment_score,
-            COALESCE(NEW.status, 'Approved'), COALESCE(NEW.created_at, CURRENT_TIMESTAMP));
+            COALESCE(NEW.status, 'Approved'), COALESCE(NEW.created_at, CURRENT_TIMESTAMP),
+            NEW.source_client_id, NEW.receipt_token, NEW.flag_reason);
     SELECT RAISE(IGNORE);
 END;
 
@@ -192,10 +256,59 @@ BEGIN
                         WHERE review_id = NEW.review_id AND report_status = 'Pending');
 END;
 
+-- Tamper evidence. sha256() is registered on every connection by db.connect(), so a
+-- plain sqlite3 shell cannot change a review without the trigger failing.
+-- content = review_id|user_id|product_id|rating|title|text|status
+-- entry   = sha256(prev_hash|content_hash|event|review_id)
+CREATE TRIGGER trg_ledger_review_insert
+AFTER INSERT ON Review
+BEGIN
+    INSERT INTO Review_Ledger (review_id, event, content_hash, prev_hash, entry_hash)
+    SELECT NEW.review_id, 'created', c, p, sha256(p || '|' || c || '|created|' || NEW.review_id)
+      FROM (SELECT sha256(NEW.review_id || '|' || NEW.user_id || '|' || NEW.product_id || '|' || NEW.rating || '|' ||
+                          COALESCE(NEW.title, '') || '|' || NEW.review_text || '|' || NEW.status) AS c,
+                   COALESCE((SELECT entry_hash FROM Review_Ledger ORDER BY ledger_id DESC LIMIT 1), 'GENESIS') AS p);
+END;
+
+CREATE TRIGGER trg_ledger_review_update
+AFTER UPDATE OF rating, title, review_text, status ON Review
+WHEN OLD.rating IS NOT NEW.rating OR OLD.title IS NOT NEW.title
+  OR OLD.review_text IS NOT NEW.review_text OR OLD.status IS NOT NEW.status
+BEGIN
+    INSERT INTO Review_Ledger (review_id, event, content_hash, prev_hash, entry_hash)
+    SELECT NEW.review_id, e, c, p, sha256(p || '|' || c || '|' || e || '|' || NEW.review_id)
+      FROM (SELECT sha256(NEW.review_id || '|' || NEW.user_id || '|' || NEW.product_id || '|' || NEW.rating || '|' ||
+                          COALESCE(NEW.title, '') || '|' || NEW.review_text || '|' || NEW.status) AS c,
+                   COALESCE((SELECT entry_hash FROM Review_Ledger ORDER BY ledger_id DESC LIMIT 1), 'GENESIS') AS p,
+                   CASE WHEN OLD.rating IS NEW.rating AND OLD.title IS NEW.title
+                         AND OLD.review_text IS NEW.review_text THEN 'status' ELSE 'edited' END AS e);
+END;
+
+CREATE TRIGGER trg_ledger_no_update
+BEFORE UPDATE ON Review_Ledger
+BEGIN
+    SELECT RAISE(ABORT, 'Review_Ledger is append-only');
+END;
+
+CREATE TRIGGER trg_ledger_no_delete
+BEFORE DELETE ON Review_Ledger
+BEGIN
+    SELECT RAISE(ABORT, 'Review_Ledger is append-only');
+END;
+
+-- Keep the previous version of a review whenever its content changes.
+CREATE TRIGGER trg_review_revision
+BEFORE UPDATE OF rating, title, review_text ON Review
+WHEN OLD.rating IS NOT NEW.rating OR OLD.title IS NOT NEW.title OR OLD.review_text IS NOT NEW.review_text
+BEGIN
+    INSERT INTO Review_Revision (review_id, rating, title, review_text)
+    VALUES (OLD.review_id, OLD.rating, OLD.title, OLD.review_text);
+END;
+
 -- ============================== VIEWS ==============================
 
 CREATE VIEW v_product_stats AS
-SELECT p.product_id, p.product_name, p.sku,
+SELECT p.product_id, p.product_name, p.sku, p.image_url,
        m.merchant_id, m.company_name,
        c.category_id, c.category_name,
        p.avg_rating, p.total_reviews,
@@ -235,3 +348,31 @@ SELECT rp.report_id, rp.report_reason, rp.reported_at,
   JOIN Users   au ON au.user_id = r.user_id
   JOIN Users   ru ON ru.user_id = rp.reporter_user_id
  WHERE rp.report_status = 'Pending';
+
+CREATE VIEW v_client_activity AS
+SELECT ac.client_id, ac.public_key, ac.site_url, ac.is_active, ac.last_used_at,
+       m.merchant_id, m.company_name,
+       (SELECT COUNT(*) FROM Api_Request_Log l WHERE l.client_id = ac.client_id AND l.outcome = 'Accepted') AS accepted,
+       (SELECT COUNT(*) FROM Api_Request_Log l WHERE l.client_id = ac.client_id AND l.outcome = 'Rejected') AS rejected,
+       (SELECT COUNT(*) FROM Api_Request_Log l WHERE l.client_id = ac.client_id AND l.outcome = 'Flagged')  AS flagged,
+       (SELECT COUNT(*) FROM Review r WHERE r.source_client_id = ac.client_id) AS reviews,
+       (SELECT ROUND(AVG(r.rating), 2) FROM Review r
+         WHERE r.source_client_id = ac.client_id AND r.status = 'Approved') AS avg_rating
+  FROM Api_Client ac
+  JOIN Merchant m ON m.merchant_id = ac.merchant_id;
+
+CREATE VIEW v_review_provenance AS
+SELECT r.review_id, r.status, r.is_verified_purchase, r.created_at,
+       r.source_client_id, ac.site_url,
+       COALESCE(sm.company_name, 'Reviewly') AS source_name,
+       t.order_reference,
+       p.product_id, p.product_name, p.sku, pm.company_name AS seller_name,
+       (SELECT l.entry_hash FROM Review_Ledger l
+         WHERE l.review_id = r.review_id ORDER BY l.ledger_id DESC LIMIT 1) AS entry_hash,
+       (SELECT COUNT(*) FROM Review_Ledger l WHERE l.review_id = r.review_id) AS ledger_entries
+  FROM Review r
+  JOIN Product p   ON p.product_id = r.product_id
+  JOIN Merchant pm ON pm.merchant_id = p.merchant_id
+  LEFT JOIN Api_Client ac ON ac.client_id = r.source_client_id
+  LEFT JOIN Merchant sm   ON sm.merchant_id = ac.merchant_id
+  LEFT JOIN Transactions t ON t.transaction_id = r.transaction_id;

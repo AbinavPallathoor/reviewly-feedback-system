@@ -1,0 +1,34 @@
+{% extends "admin/base.html" %}
+{% block title %}Reviews{% endblock %}
+{% block content %}
+<div class="title-row">
+  <h1>Reviews</h1>
+  <a class="btn" href="{{ reviewly_merchant_url }}" target="_blank" rel="noopener">Reply on Reviewly ↗</a>
+</div>
+<p class="lead">Reviews are held by Reviewly. You can read and reply to them, but not edit or remove them.</p>
+<form method="get" class="filters">
+  <select name="sku" onchange="this.form.submit()">
+    <option value="">All products</option>
+    {% for p in products %}<option value="{{ p.sku }}" {{ 'selected' if sku == p.sku }}>{{ p.name }}</option>{% endfor %}
+  </select>
+</form>
+{% if feed is none %}
+<div class="notice error">Reviewly is unreachable right now.</div>
+{% elif not feed %}
+<section class="panel"><p class="muted">No published reviews yet.</p></section>
+{% else %}
+<section class="panel flush">
+  {% for r in feed %}
+  <article class="review">
+    <div class="review-head"><span class="star">{{ '★' * r.rating }}<span class="off">{{ '★' * (5 - r.rating) }}</span></span>
+      <b>{{ r.author }}</b>{% if r.verified %}<span class="pill ok">Verified purchase</span>{% endif %}
+      <span class="muted">{{ r.product }}</span><span class="muted r-date">{{ r.date }}</span></div>
+    {% if r.title %}<h3>{{ r.title }}</h3>{% endif %}
+    <p>{{ r.text }}</p>
+    {% if r.reply %}<div class="reply"><b>Your reply</b> {{ r.reply.text }}</div>{% endif %}
+    <a class="small" href="{{ r.verify_url }}" target="_blank" rel="noopener">Open on Reviewly ↗</a>
+  </article>
+  {% endfor %}
+</section>
+{% endif %}
+{% endblock %}

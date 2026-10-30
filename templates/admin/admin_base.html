@@ -1,24 +1,38 @@
 {% extends "base.html" %}
 {% block shell %}
 {% set pending = pending_count() %}
-<div class="admin-shell" x-data="{ nav: false }">
-  <aside class="side" :class="nav && 'open'">
-    <a class="brand" href="{{ url_for('admin_overview') }}"><i>R</i>Reviewly <span class="pill" style="margin-left:.25rem">Admin</span></a>
-    <div class="label">Console</div>
-    <a href="{{ url_for('admin_overview') }}" class="{{ 'active' if ep == 'admin_overview' }}">◧ Overview</a>
-    <a href="{{ url_for('admin_moderation') }}" class="{{ 'active' if ep == 'admin_moderation' }}">⚑ Moderation {% if pending %}<span class="cnt">{{ pending }}</span>{% endif %}</a>
-    <a href="{{ url_for('admin_reviews') }}" class="{{ 'active' if ep == 'admin_reviews' }}">☰ Reviews</a>
-    <a href="{{ url_for('admin_users') }}" class="{{ 'active' if ep == 'admin_users' }}">◯ Users</a>
-    <a href="{{ url_for('admin_catalog') }}" class="{{ 'active' if ep == 'admin_catalog' }}">▦ Products &amp; Categories</a>
-    <a href="{{ url_for('admin_graph') }}" class="{{ 'active' if ep == 'admin_graph' }}">⋰ Graph view</a>
-    <div class="label">Site</div>
-    <a href="{{ url_for('products') }}">↗ Storefront</a>
-    <a href="{{ url_for('schema') }}">⌗ Schema</a>
-    <div class="foot"><button class="iconbtn" onclick="toggleTheme()" title="Toggle dark mode">◐</button><span class="muted" style="flex:1">{{ g.user.full_name }}</span><a href="{{ url_for('logout') }}">Log out</a></div>
-  </aside>
-  <div style="min-width:0">
-    <div class="mobile-bar"><button class="iconbtn" @click="nav = !nav" aria-label="Menu">☰</button><strong>Reviewly Admin</strong></div>
-    <main class="admin-main" @click="nav = false">{% block content %}{% endblock %}</main>
+<div class="drawer lg:drawer-open">
+  <input id="admin-drawer" type="checkbox" class="drawer-toggle">
+  <div class="drawer-content min-w-0">
+    <header class="lg:hidden sticky top-0 z-30 flex items-center gap-2 h-14 px-3 bg-base-100/90 backdrop-blur border-b border-base-300">
+      <label for="admin-drawer" class="btn btn-ghost btn-sm btn-square" aria-label="Open menu"><i data-lucide="menu" class="size-5"></i></label>
+      <span class="font-bold">Reviewly Admin</span>
+    </header>
+    <main class="p-4 sm:p-6 lg:p-8 pb-16 max-w-7xl">{% block content %}{% endblock %}</main>
+  </div>
+  <div class="drawer-side z-40">
+    <label for="admin-drawer" class="drawer-overlay" aria-label="Close menu"></label>
+    <aside class="min-h-full w-64 bg-base-100 border-r border-base-300 flex flex-col">
+      <a href="{{ url_for('admin_overview') }}" class="flex items-center gap-2 font-bold text-[17px] h-14 px-5 border-b border-base-300">
+        <span class="logo-mark">R</span>Reviewly
+        <span class="badge badge-sm badge-outline ml-auto">Admin</span>
+      </a>
+      <ul class="menu w-full gap-0.5 p-3">
+        <li class="menu-title">Console</li>
+        {% for endpoint, label, icon in [('admin_overview', 'Overview', 'layout-dashboard'), ('admin_moderation', 'Moderation', 'flag'), ('admin_reviews', 'Reviews', 'message-square'), ('admin_users', 'Users', 'users'), ('admin_catalog', 'Products & Categories', 'package'), ('admin_integrity', 'API & Integrity', 'shield-check'), ('admin_graph', 'Graph view', 'waypoints')] %}
+        <li><a href="{{ url_for(endpoint) }}" class="{{ 'menu-active' if ep == endpoint }}"><i data-lucide="{{ icon }}" class="size-4"></i>{{ label }}
+          {% if endpoint == 'admin_moderation' and pending %}<span class="badge badge-sm {{ 'badge-ghost' if ep == endpoint else 'badge-neutral' }} ml-auto">{{ pending }}</span>{% endif %}</a></li>
+        {% endfor %}
+        <li class="menu-title mt-3">Site</li>
+        <li><a href="{{ url_for('companies') }}"><i data-lucide="building-2" class="size-4"></i>Public site</a></li>
+        <li><a href="{{ url_for('schema') }}"><i data-lucide="database" class="size-4"></i>Schema</a></li>
+      </ul>
+      <div class="mt-auto p-3 border-t border-base-300 flex items-center gap-2">
+        <span class="grid place-items-center size-8 rounded-full bg-base-300 text-xs font-bold">{{ g.user.full_name[:1] }}</span>
+        <div class="min-w-0 flex-1"><p class="text-sm font-semibold truncate">{{ g.user.full_name }}</p><p class="text-xs opacity-60 truncate">{{ g.user.email }}</p></div>
+        <a href="{{ url_for('logout') }}" class="btn btn-ghost btn-sm btn-square" aria-label="Log out"><i data-lucide="log-out" class="size-4"></i></a>
+      </div>
+    </aside>
   </div>
 </div>
 {% endblock %}

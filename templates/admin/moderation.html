@@ -1,26 +1,29 @@
 {% extends "admin/admin_base.html" %}
-{% from "_macros.html" import stars, empty %}
+{% from "_macros.html" import stars, empty, page_head %}
 {% block title %}Moderation{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Moderation queue</h1><p>Approve a report to remove the review. Reject it to keep the review visible.</p></div></div>
+{{ page_head('Moderation queue', 'Approve a report to remove the review. Reject it to keep the review visible.') }}
 {% if queue %}
-<div class="stack">
+<div class="grid gap-3">
 {% for r in queue %}
-<article class="card hover reveal" style="margin:0">
-  <div class="row between">
-    <div class="row"><span class="pill inv">⚑ {{ r.report_reason }}</span><span class="pill">{{ r.pending_reports }} pending report{{ 's' if r.pending_reports != 1 }}</span><span class="pill dash">review {{ r.review_status }}</span></div>
-    <span class="muted" style="font-size:.8rem">reported by {{ r.reporter_name }} · {{ r.reported_at[:16] }}</span>
+<article class="card bg-base-100 border border-base-300"><div class="card-body p-5 gap-3">
+  <div class="flex flex-wrap items-center gap-2">
+    <span class="badge badge-neutral gap-1"><i data-lucide="flag" class="size-3"></i>{{ r.report_reason }}</span>
+    <span class="badge badge-outline">{{ r.pending_reports }} pending report{{ 's' if r.pending_reports != 1 }}</span>
+    <span class="badge badge-ghost">Review {{ r.review_status }}</span>
+    <span class="ml-auto text-xs opacity-60">by {{ r.reporter_name }} · {{ r.reported_at[:16] }}</span>
   </div>
-  <div class="row" style="margin-top:.75rem">{{ stars(r.rating) }}<strong>{{ r.title or 'Untitled review' }}</strong></div>
-  <p style="margin:.4rem 0;color:var(--ink-2)">{{ r.review_text }}</p>
-  <div class="row between"><span class="muted" style="font-size:.85rem">by {{ r.author_name }} on <a href="{{ url_for('product_detail', pid=r.product_id) }}">{{ r.product_name }}</a></span>
-    <div class="row">
-      <form class="inline" method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='reject') }}"><button class="ghost sm">Reject report · keep</button></form>
-      <form class="inline" method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='approve') }}"><button class="sm">Approve · remove review</button></form>
-    </div>
+  <div class="rounded-box bg-base-200 p-4">
+    <div class="flex items-center gap-2">{{ stars(r.rating) }}<span class="font-semibold">{{ r.title or 'Untitled review' }}</span></div>
+    <p class="text-sm opacity-80 mt-1">{{ r.review_text }}</p>
+    <p class="text-xs opacity-60 mt-2">by {{ r.author_name }} on <a href="{{ url_for('product_detail', pid=r.product_id) }}" class="link">{{ r.product_name }}</a></p>
   </div>
-</article>
+  <div class="flex flex-wrap justify-end gap-2">
+    <form method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='reject') }}"><button class="btn btn-sm btn-outline border-base-300"><i data-lucide="x" class="size-4"></i>Reject report, keep review</button></form>
+    <form method="post" action="{{ url_for('admin_report_action', report_id=r.report_id, action='approve') }}"><button class="btn btn-sm btn-neutral"><i data-lucide="check" class="size-4"></i>Approve, remove review</button></form>
+  </div>
+</div></article>
 {% endfor %}
 </div>
-{% else %}{{ empty('Queue is clear', 'No pending reports. Nice.', '✓') }}{% endif %}
+{% else %}{{ empty('Queue is clear', 'No pending reports right now.', 'circle-check') }}{% endif %}
 {% endblock %}

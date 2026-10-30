@@ -1,49 +1,75 @@
 <!doctype html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="reviewly">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Reviewly{% endblock %} · Reviewly</title>
-  <script>try{document.documentElement.dataset.theme=localStorage.getItem("reviewly-theme")||"light"}catch(e){}</script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.classless.min.css">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daisyui@5.7.47/daisyui.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+  <style type="text/tailwindcss">@theme { --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif; }</style>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="https://unpkg.com/lucide@1.55.0/dist/umd/lucide.min.js"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.1/dist/cdn.min.js"></script>
   {% block head %}{% endblock %}
 </head>
-<body>
+<body class="min-h-screen bg-base-200 text-base-content flex flex-col">
 {% block shell %}
-<nav class="topnav">
-  <div class="inner">
-    <a class="brand" href="{{ url_for('index') }}"><i>R</i>Reviewly</a>
-    <div class="navlinks">
-      <a href="{{ url_for('products') }}" class="{{ 'active' if ep.startswith('product') }}">Products</a>
-      {% if g.user and g.user.role == 'Merchant' %}<a href="{{ url_for('merchant_dashboard') }}" class="{{ 'active' if ep.startswith('merchant') }}">Dashboard</a>{% endif %}
-      {% if g.user and g.user.role == 'Admin' %}<a href="{{ url_for('admin_overview') }}">Admin</a>{% endif %}
-      <a href="{{ url_for('schema') }}" class="{{ 'active' if ep == 'schema' }}">Schema</a>
+<header class="bg-base-100 border-b border-base-300">
+  <nav class="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
+    <a href="{{ url_for('index') }}" class="flex items-center gap-2 font-bold text-[17px] shrink-0">
+      <span class="logo-mark">R</span>Reviewly
+    </a>
+    <div class="hidden sm:flex items-center gap-5 text-sm">
+      <a href="{{ url_for('companies') }}" class="navlink {{ 'on' if ep.startswith('compan') or ep in ('product_detail', 'verify_review') }}">Companies</a>
+      {% if g.user and g.user.role == 'Merchant' %}
+      <a href="{{ url_for('merchant_dashboard') }}" class="navlink {{ 'on' if ep == 'merchant_dashboard' }}">Dashboard</a>
+      <a href="{{ url_for('merchant_integration') }}" class="navlink {{ 'on' if ep == 'merchant_integration' }}">API &amp; widget</a>
+      {% endif %}
+      {% if g.user and g.user.role == 'Admin' %}<a href="{{ url_for('admin_overview') }}" class="navlink">Admin</a>{% endif %}
     </div>
-    <div class="navright">
-      <button class="iconbtn" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">◐</button>
+    <div class="ml-auto flex items-center gap-2">
       {% if g.user %}
-        <span class="pill">{{ g.user.role }}</span>
-        <span class="muted">{{ g.user.full_name }}</span>
-        <a href="{{ url_for('logout') }}">Log out</a>
+      <div class="dropdown dropdown-end">
+        <div tabindex="0" role="button" class="btn btn-ghost btn-sm gap-2 px-2 font-normal">
+          <span class="grid place-items-center size-7 rounded-full bg-base-300 text-xs font-semibold">{{ g.user.full_name[:1] }}</span>
+          <span class="hidden md:inline">{{ g.user.full_name }}</span>
+          <i data-lucide="chevron-down" class="size-3.5 opacity-60"></i>
+        </div>
+        <ul tabindex="0" class="dropdown-content menu bg-base-100 rounded-box border border-base-300 shadow z-40 mt-2 w-56 p-2">
+          <li class="menu-title"><span>{{ g.user.email }}</span></li>
+          <li class="sm:hidden"><a href="{{ url_for('companies') }}">Companies</a></li>
+          {% if g.user.role == 'Merchant' %}<li class="sm:hidden"><a href="{{ url_for('merchant_dashboard') }}">Dashboard</a></li><li class="sm:hidden"><a href="{{ url_for('merchant_integration') }}">API &amp; widget</a></li>{% endif %}
+          {% if g.user.role == 'Admin' %}<li class="sm:hidden"><a href="{{ url_for('admin_overview') }}">Admin</a></li>{% endif %}
+          <li><a href="{{ url_for('logout') }}">Log out</a></li>
+        </ul>
+      </div>
       {% else %}
-        <a href="{{ url_for('login') }}" class="{{ 'active' if ep == 'login' }}">Log in</a>
-        <a href="{{ url_for('register') }}"><strong>Sign up</strong></a>
+      <a href="{{ url_for('login') }}" class="btn btn-ghost btn-sm font-medium">Log in</a>
+      <a href="{{ url_for('register') }}" class="btn btn-primary btn-sm">Sign up</a>
       {% endif %}
     </div>
+  </nav>
+</header>
+<main class="max-w-6xl w-full mx-auto px-4 py-8 pb-16 flex-1">{% block content %}{% endblock %}</main>
+<footer class="bg-base-100 border-t border-base-300 text-sm">
+  <div class="max-w-6xl mx-auto px-4 py-6 flex flex-wrap gap-x-6 gap-y-2 items-center opacity-70">
+    <span>© Reviewly</span>
+    <a href="{{ url_for('companies') }}" class="link link-hover">Companies</a>
+    <a href="{{ url_for('login') }}" class="link link-hover">For businesses</a>
+    <a href="{{ url_for('schema') }}" class="link link-hover">Database schema</a>
+    <span class="ml-auto">Reviews are only accepted against a registered purchase.</span>
   </div>
-</nav>
-<main class="wrap">{% block content %}{% endblock %}</main>
+</footer>
 {% endblock %}
 
-<div class="toasts" x-data='toaster({{ get_flashed_messages(with_categories=true)|tojson }})' aria-live="polite">
+<div class="toast toast-end toast-bottom z-50" x-data='toaster({{ get_flashed_messages(with_categories=true)|tojson }})' aria-live="polite">
   <template x-for="t in items" :key="t.id">
-    <div class="toast" :class="t.kind" x-show="t.show" x-transition.opacity.duration.200ms @click="dismiss(t.id)">
-      <b x-text="t.kind === 'error' ? '!' : '✓'"></b><span x-text="t.message"></span>
+    <div role="alert" class="alert shadow text-sm max-w-sm cursor-pointer" :class="t.kind === 'error' ? 'alert-error' : 'alert-success'"
+         x-show="t.show" x-transition.opacity.duration.200ms @click="dismiss(t.id)">
+      <span x-text="t.message"></span>
     </div>
   </template>
 </div>

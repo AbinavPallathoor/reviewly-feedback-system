@@ -1,28 +1,53 @@
-{% macro stars(n, cls='') -%}
-<span class="stars {{ cls }}" aria-label="{{ n }} out of 5">{% for i in range(1, 6) %}{% if i <= (n or 0) + 0.25 %}★{% else %}<span class="off">☆</span>{% endif %}{% endfor %}</span>
+{% macro stars(n, size='xs') -%}
+{% set cur = ((n or 0) + 0.25)|int %}
+<div class="rating rating-{{ size }} pointer-events-none align-middle" aria-label="{{ n }} out of 5">
+  {% for i in range(1, 6) %}<div class="mask mask-star-2" {% if i == cur %}aria-current="true"{% endif %}></div>{% endfor %}
+</div>
 {%- endmacro %}
 
 {% macro bars(dist) -%}
-<div class="bars">
+<div class="space-y-2">
   {% for d in dist %}
-  <div class="bar"><span>{{ d.rating }} ★</span><div class="track"><div class="fill" data-w="{{ d.pct }}"></div></div><span class="n">{{ d.count }}</span></div>
+  <div class="grid grid-cols-[2.25rem_1fr_2rem] items-center gap-3 text-sm">
+    <span class="font-medium">{{ d.rating }} ★</span>
+    <div class="h-2 rounded-full bg-base-300 overflow-hidden"><div class="bar-fill h-full rounded-full bg-base-content" data-w="{{ d.pct }}"></div></div>
+    <span class="text-right tabular-nums opacity-60">{{ d.count }}</span>
+  </div>
   {% endfor %}
 </div>
 {%- endmacro %}
 
-{% macro empty(title, text='', glyph='○') -%}
-<div class="empty"><div class="glyph">{{ glyph }}</div><b>{{ title }}</b>{{ text }}</div>
+{% macro empty(title, text='', icon='inbox') -%}
+<div class="flex flex-col items-center justify-center text-center gap-2 py-10 px-4 border border-dashed border-base-300 rounded-box">
+  <i data-lucide="{{ icon }}" class="size-8 opacity-40"></i>
+  <p class="font-semibold">{{ title }}</p>
+  {% if text %}<p class="text-sm opacity-60">{{ text }}</p>{% endif %}
+</div>
 {%- endmacro %}
 
 {% macro err(errors, key) -%}
-{% if errors and errors.get(key) %}<small class="err">{{ errors[key] }}</small>{% endif %}
+{% if errors and errors.get(key) %}<p class="text-xs font-semibold mt-1">✕ {{ errors[key] }}</p>{% endif %}
 {%- endmacro %}
 
-{% macro star_input(name, value=0, size='') -%}
-<div x-data="stars({{ value or 0 }})" class="starinput {{ size }}" @mouseleave="hover = 0" role="radiogroup" aria-label="{{ name }}">
-  <input type="hidden" name="{{ name }}" :value="value || ''">
-  <template x-for="i in 5" :key="i">
-    <span :class="i <= shown && 'on'" @mouseenter="hover = i" @click="value = i" x-text="i <= shown ? '★' : '☆'" role="radio" :aria-checked="i === value"></span>
-  </template>
+{% macro star_input(name, value=0, size='md') -%}
+<div class="rating rating-input rating-{{ size }}">
+  <input type="radio" name="{{ name }}" value="" class="rating-hidden" aria-label="No rating" {% if not value %}checked{% endif %}>
+  {% for i in range(1, 6) %}<input type="radio" name="{{ name }}" value="{{ i }}" class="mask mask-star-2" aria-label="{{ i }} star" {% if value == i %}checked{% endif %}>{% endfor %}
 </div>
+{%- endmacro %}
+
+{% macro page_head(title, subtitle='') -%}
+<div class="flex flex-wrap items-end justify-between gap-4 mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">{{ title }}</h1>
+    {% if subtitle %}<p class="text-sm opacity-60 mt-1">{{ subtitle }}</p>{% endif %}
+  </div>
+  {{ caller() if caller }}
+</div>
+{%- endmacro %}
+
+{% macro product_thumb(p, cls='', text='text-4xl') -%}
+{% set src = product_img(p) %}
+{% if src %}<img src="{{ src }}" alt="{{ p.product_name }}" loading="lazy" class="mono-img object-cover {{ cls }}">
+{% else %}<div class="grid place-items-center bg-base-200 {{ cls }}"><span class="{{ text }} font-semibold opacity-30">{{ p.product_name[:2] }}</span></div>{% endif %}
 {%- endmacro %}

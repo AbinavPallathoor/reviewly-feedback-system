@@ -1,27 +1,35 @@
 {% extends "admin/admin_base.html" %}
-{% from "_macros.html" import stars, empty %}
+{% from "_macros.html" import stars, empty, page_head %}
 {% block title %}Reviews{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Reviews</h1><p>{{ reviews|length }} result{{ 's' if reviews|length != 1 }}</p></div></div>
-<form class="toolbar reveal" method="get">
-  <input type="search" name="q" value="{{ term }}" placeholder="Search title, text, product, author…">
-  <select name="status" style="flex:0 0 160px">
+{{ page_head('Reviews', reviews|length ~ ' result' ~ ('s' if reviews|length != 1 else '')) }}
+<form method="get" class="flex flex-wrap gap-2 mb-4">
+  <label class="input flex-1 min-w-56"><i data-lucide="search" class="size-4 opacity-50"></i><input type="search" name="q" value="{{ term }}" placeholder="Search title, text, product, author"></label>
+  <select name="status" class="select w-44">
     <option value="">All statuses</option>
     {% for s in ['Approved', 'Pending', 'Rejected'] %}<option {{ 'selected' if status == s }}>{{ s }}</option>{% endfor %}
   </select>
-  <button class="sm">Filter</button>{% if term or status %}<a href="{{ url_for('admin_reviews') }}" class="muted">Clear</a>{% endif %}
+  <button class="btn btn-neutral">Filter</button>
+  {% if term or status %}<a href="{{ url_for('admin_reviews') }}" class="btn btn-ghost">Clear</a>{% endif %}
 </form>
 {% if reviews %}
-<div class="tablewrap reveal"><table>
-<thead><tr><th>#</th><th>Review</th><th>Product</th><th>Author</th><th>Rating</th><th>Helpful</th><th>Reports</th><th>Status</th></tr></thead>
-<tbody>{% for r in reviews %}<tr>
-  <td>{{ r.review_id }}</td>
-  <td style="max-width:280px"><strong>{{ r.title or '—' }}</strong><br><small class="muted">{{ r.review_text[:80] }}{{ '…' if r.review_text|length > 80 }}</small></td>
-  <td>{{ r.product_name }}</td><td>{{ r.full_name }}{% if r.is_verified_purchase %} <span class="pill">✓</span>{% endif %}</td>
-  <td>{{ stars(r.rating) }}</td><td>{{ '%+d'|format(r.score) }}</td><td>{{ r.reports }}</td>
-  <td><form class="inline" method="post" action="{{ url_for('admin_review_status', rid=r.review_id) }}">
-    <select name="status" onchange="this.form.submit()" aria-label="Status">{% for s in ['Approved', 'Pending', 'Rejected'] %}<option {{ 'selected' if r.status == s }}>{{ s }}</option>{% endfor %}</select>
-  </form></td>
-</tr>{% endfor %}</tbody></table></div>
-{% else %}{{ empty('No reviews match', 'Try clearing the filters.', '⌕') }}{% endif %}
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+  <table class="table table-sm">
+    <thead><tr><th>#</th><th>Review</th><th>Product</th><th>Author</th><th>Rating</th><th class="text-right">Helpful</th><th class="text-right">Reports</th><th>Status</th></tr></thead>
+    <tbody>{% for r in reviews %}<tr class="hover:bg-base-200">
+      <td class="opacity-50">{{ r.review_id }}</td>
+      <td class="max-w-xs"><p class="font-medium">{{ r.title or '—' }}</p><p class="text-xs opacity-60 truncate">{{ r.review_text }}</p>
+        <p class="text-xs mt-0.5"><span class="opacity-50">via {{ r.source_name }}</span>{% if r.flag_reason %} · <span class="font-semibold">⚑ {{ r.flag_reason }}</span>{% endif %} · <a href="{{ url_for('verify_review', rid=r.review_id) }}" class="link opacity-60">ledger</a></p></td>
+      <td class="whitespace-nowrap">{{ r.product_name }}</td>
+      <td class="whitespace-nowrap">{{ r.full_name }}{% if r.is_verified_purchase %} <i data-lucide="badge-check" class="size-3.5 inline opacity-70"></i>{% endif %}</td>
+      <td>{{ stars(r.rating) }}</td>
+      <td class="text-right tabular-nums">{{ '%+d'|format(r.score) }}</td>
+      <td class="text-right tabular-nums">{{ r.reports }}</td>
+      <td><form method="post" action="{{ url_for('admin_review_status', rid=r.review_id) }}">
+        <select name="status" class="select select-xs w-28 {{ 'font-semibold' if r.status != 'Approved' }}" onchange="this.form.submit()" aria-label="Status">{% for s in ['Approved', 'Pending', 'Rejected'] %}<option {{ 'selected' if r.status == s }}>{{ s }}</option>{% endfor %}</select>
+      </form></td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% else %}{{ empty('No reviews match', 'Try clearing the filters.', 'search-x') }}{% endif %}
 {% endblock %}

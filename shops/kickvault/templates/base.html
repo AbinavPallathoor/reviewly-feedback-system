@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sneakers &amp; Apparel{% endblock %} | KICKVAULT</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+  <link rel="stylesheet" href="{{ url_for('static', filename='shop.css') }}">
+</head>
+<body>
+<div class="announce">Free shipping on orders over $100 · Free 30-day returns</div>
+<header class="header">
+  <div class="wrap header-row">
+    <a href="{{ url_for('index') }}" class="logo">KICKVAULT</a>
+    <nav class="cats">
+      <a href="{{ url_for('index') }}" class="{{ 'on' if ep == 'index' and not cat }}">Shop all</a>
+      {% for c in ['Footwear', 'Apparel', 'Accessories'] %}<a href="{{ url_for('index', cat=c) }}" class="{{ 'on' if cat == c }}">{{ c }}</a>{% endfor %}
+    </nav>
+    <div class="acct">
+      {% if g.user %}
+        <a href="{{ url_for('orders') }}">Orders</a>
+        <a href="{{ url_for('logout') }}" class="muted">Sign out</a>
+      {% else %}
+        <a href="{{ url_for('login') }}">Sign in</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+{% with msgs = get_flashed_messages(with_categories=true) %}{% if msgs %}
+<div class="wrap">{% for kind, m in msgs %}<div class="msg {{ kind }}">{{ m }}</div>{% endfor %}</div>
+{% endif %}{% endwith %}
+<main>
+{% if not_found %}
+  <section class="wrap page"><h1>Page not found</h1><p><a href="{{ url_for('index') }}">Continue shopping</a></p></section>
+{% else %}{% block content %}{% endblock %}{% endif %}
+</main>
+<footer class="footer">
+  <div class="wrap footer-grid">
+    <div><p class="logo small">KICKVAULT</p><p class="muted">Sneakers and streetwear since 2019.</p></div>
+    <div><b>Help</b><p>Shipping<br>Returns<br>Size guide</p></div>
+    <div><b>Reviews</b><p>Product reviews are collected and published by <a href="{{ reviewly_url }}" target="_blank" rel="noopener">Reviewly</a>.</p></div>
+  </div>
+  <div class="wrap copy muted">© KICKVAULT · Demo store</div>
+</footer>
+{% block scripts %}<script async src="{{ reviewly_url }}/widget.js"></script>{% endblock %}
+</body>
+</html>

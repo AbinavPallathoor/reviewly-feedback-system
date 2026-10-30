@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 reviewly.db
 .DS_Store
+shops/*/shop.db

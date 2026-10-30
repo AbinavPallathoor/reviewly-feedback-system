@@ -1,35 +1,57 @@
 {% extends "admin/admin_base.html" %}
-{% from "_macros.html" import stars, empty %}
+{% from "_macros.html" import stars, empty, page_head, product_thumb %}
 {% block title %}Products & Categories{% endblock %}
 {% block content %}
-<div class="pagehead reveal"><div><h1>Products &amp; Categories</h1><p>{{ products|length }} products in {{ categories|length }} categories</p></div></div>
-<div class="split">
-  <form class="card reveal" method="post" action="{{ url_for('admin_add_category') }}" x-data="{ n: '' }">
-    <h4>Add category</h4>
-    <label>Name<input name="category_name" x-model="n" required minlength="2" placeholder="e.g. Sports"></label>
-    <small class="err" x-show="n.length === 1" x-cloak>At least 2 characters.</small>
-    <label>Description<input name="description" placeholder="Optional"></label>
-    <button class="sm" :disabled="n.trim().length < 2">Add category</button>
+{{ page_head('Products & Categories', products|length ~ ' products in ' ~ categories|length ~ ' categories') }}
+<div class="grid gap-4 lg:grid-cols-5 mb-8">
+  <form class="card bg-base-100 border border-base-300 lg:col-span-2" method="post" action="{{ url_for('admin_add_category') }}" x-data="{ n: '' }">
+    <div class="card-body p-6 gap-1">
+      <h2 class="font-semibold flex items-center gap-2"><i data-lucide="folder-plus" class="size-4"></i>Add category</h2>
+      <fieldset class="fieldset"><legend class="fieldset-legend">Name</legend>
+        <input class="input w-full" name="category_name" x-model="n" required placeholder="e.g. Sports">
+        <p class="label text-xs" x-show="n.length === 1" x-cloak>✕ At least 2 characters.</p></fieldset>
+      <fieldset class="fieldset"><legend class="fieldset-legend">Description <span class="font-normal opacity-50">(optional)</span></legend>
+        <input class="input w-full" name="description" placeholder="Short description"></fieldset>
+      <button class="btn btn-neutral mt-3" :disabled="n.trim().length < 2">Add category</button>
+    </div>
   </form>
-  <form class="card reveal" method="post" action="{{ url_for('admin_add_product') }}">
-    <h4>Add product</h4>
-    {% if merchants and categories %}
-    <label>Name<input name="product_name" required minlength="2"></label>
-    <div class="row" style="flex-wrap:nowrap"><label style="flex:1">SKU<input name="sku" required minlength="3" placeholder="XX-YY-000"></label>
-    <label style="flex:1">Merchant<select name="merchant_id" required><option value="">Choose…</option>{% for m in merchants %}<option value="{{ m.merchant_id }}">{{ m.company_name }}</option>{% endfor %}</select></label>
-    <label style="flex:1">Category<select name="category_id" required><option value="">Choose…</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></label></div>
-    <button class="sm">Add product</button>
-    {% else %}{{ empty('Need a merchant and a category first') }}{% endif %}
+  <form class="card bg-base-100 border border-base-300 lg:col-span-3" method="post" action="{{ url_for('admin_add_product') }}">
+    <div class="card-body p-6 gap-1">
+      <h2 class="font-semibold flex items-center gap-2"><i data-lucide="package-plus" class="size-4"></i>Add product</h2>
+      {% if merchants and categories %}
+      <div class="grid sm:grid-cols-2 gap-x-3">
+        <fieldset class="fieldset"><legend class="fieldset-legend">Name</legend><input class="input w-full" name="product_name" required placeholder="Product name"></fieldset>
+        <fieldset class="fieldset"><legend class="fieldset-legend">SKU</legend><input class="input w-full font-mono" name="sku" required placeholder="XX-YY-000"></fieldset>
+        <fieldset class="fieldset"><legend class="fieldset-legend">Merchant</legend><select class="select w-full" name="merchant_id" required><option value="">Choose merchant</option>{% for m in merchants %}<option value="{{ m.merchant_id }}">{{ m.company_name }}</option>{% endfor %}</select></fieldset>
+        <fieldset class="fieldset"><legend class="fieldset-legend">Category</legend><select class="select w-full" name="category_id" required><option value="">Choose category</option>{% for c in categories %}<option value="{{ c.category_id }}">{{ c.category_name }}</option>{% endfor %}</select></fieldset>
+      </div>
+      <button class="btn btn-neutral mt-3 sm:self-start">Add product</button>
+      {% else %}{{ empty('Need a merchant and a category first') }}{% endif %}
+    </div>
   </form>
 </div>
-<h3 style="margin-top:2rem" class="reveal">Categories</h3>
+<h2 class="text-lg font-bold mb-3">Categories</h2>
 {% if categories %}
-<div class="grid-auto">{% for c in categories %}<div class="card hover reveal"><div class="row between"><strong>{{ c.category_name }}</strong><span class="pill">{{ c.n }} products</span></div><small class="muted">{{ c.description or 'No description' }}</small></div>{% endfor %}</div>
-{% else %}{{ empty('No categories yet') }}{% endif %}
-<h3 style="margin-top:2rem" class="reveal">Products</h3>
+<div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 mb-8">
+  {% for c in categories %}
+  <div class="card bg-base-100 border border-base-300"><div class="card-body p-4 gap-1">
+    <div class="flex items-center justify-between gap-2"><span class="font-semibold">{{ c.category_name }}</span><span class="badge badge-sm badge-ghost">{{ c.n }} products</span></div>
+    <p class="text-xs opacity-60">{{ c.description or 'No description' }}</p>
+  </div></div>
+  {% endfor %}
+</div>
+{% else %}<div class="mb-8">{{ empty('No categories yet', '', 'folder') }}</div>{% endif %}
+<h2 class="text-lg font-bold mb-3">Products</h2>
 {% if products %}
-<div class="tablewrap reveal"><table><thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th>Merchant</th><th>Rating</th><th>Reviews</th></tr></thead><tbody>
-{% for p in products %}<tr><td>{{ p.product_id }}</td><td><a href="{{ url_for('product_detail', pid=p.product_id) }}">{{ p.product_name }}</a></td><td><code>{{ p.sku }}</code></td><td>{{ p.category_name }}</td><td>{{ p.company_name }}</td><td>{{ stars(p.avg_rating) }} {{ '%.1f'|format(p.avg_rating) }}</td><td>{{ p.total_reviews }}</td></tr>{% endfor %}
-</tbody></table></div>
-{% else %}{{ empty('No products yet') }}{% endif %}
+<div class="overflow-x-auto rounded-box border border-base-300 bg-base-100">
+  <table class="table">
+    <thead><tr><th>#</th><th>Product</th><th>SKU</th><th>Category</th><th>Merchant</th><th>Rating</th><th class="text-right">Reviews</th></tr></thead>
+    <tbody>{% for p in products %}<tr class="hover:bg-base-200">
+      <td class="opacity-50">{{ p.product_id }}</td><td><a href="{{ url_for('product_detail', pid=p.product_id) }}" class="flex items-center gap-3 font-medium link link-hover">{{ product_thumb(p, 'size-10 rounded-lg shrink-0 border border-base-300', 'text-xs') }}<span>{{ p.product_name }}</span></a></td>
+      <td class="font-mono text-xs">{{ p.sku }}</td><td>{{ p.category_name }}</td><td>{{ p.company_name }}</td>
+      <td class="whitespace-nowrap">{{ stars(p.avg_rating) }} <span class="ml-1 font-semibold">{{ '%.1f'|format(p.avg_rating) }}</span></td><td class="text-right">{{ p.total_reviews }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% else %}{{ empty('No products yet', '', 'package') }}{% endif %}
 {% endblock %}
